@@ -1,0 +1,208 @@
+---
+title: "Predicting Customer Churn: The Imbalanced HR Dataset"
+output: 
+  html_document:
+      toc: yes
+      toc_float: yes
+      code_folding: hide
+---
+
+# Situation
+
+You are the Director of HR at a large multinational. Your boss - a VP who answers to the CEO - is concerned about employee churn over the last few years and wants you to fix it.
+
+You have tasked your elite data science team to figure out who's leaving and why. Better yet, to build a predictive model that can predict which employees are likely to leave. 
+
+Your lead data scientist hands you a report, below. The report outlines a number of different models, each with pros and cons. You must decide which to use. How do you proceed?
+
+# The Report
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(dplyr)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(purrr) # for functional programming (map)
+library(rsample) # contains the IBM attrition data set
+```
+
+
+```{r}
+# Helper function to print the confusion matrix and other performance metrics of the models.
+printPerformance = function(pred, actual, positive="Yes") {
+  print(caret::confusionMatrix(data=pred, reference=actual, positive=positive, dnn=c("Predicted", "Actual")))
+}
+```
+
+First, let's load in the data and take a peak.
+
+```{r}
+data(attrition, package="rsample")
+df <- attrition 
+str(df)
+head(df)
+table(df$Attrition)
+```
+
+Next, let's split the data into training and testing.
+
+```{r}
+set.seed(123) # Set the seed to make it reproducible
+
+train.index <- createDataPartition(df$Attrition, p = .8, list = FALSE)
+train <- df[ train.index,]
+test  <- df[-train.index,]
+```
+
+Let's look at the imbalance of the classes in the full, training, and testing data sets.
+
+```{r}
+table(df$Attrition)/nrow(df)
+table(train$Attrition)/nrow(train)
+table(test$Attrition)/nrow(test)
+```
+
+
+# Model Training
+
+We train eight different models. 
+
+- Original. A decision tree, using CV with Accuracy as the assessment metric. (I.e., no adjustments are made to deal with the class imbalance problem.) 
+- Kappa. Same as Original, except during CV, the kappa metric is used instead of the accuracy metric.
+- Weighted. Same as Original, except "No" observations are weighted .84 and "yes" observations are weighted .16.
+- Cost FN. Same as Original, except false negatives are given a cost of 4 and false positives are given a cost of 1.
+- Cost FP. Same as Original, except false positives are given a cost of 4 and false negatives are given a cost of 1.
+- Down. Same as Original, except training data is first down sampled.
+- SMOTE. Same as Original, except new training data is artificially generated using the SMOTE method.
+- All. Same as Original, except the kappa metric is used during CV, and down sampling method is used.
+
+```{r, cache=TRUE}
+metric = "Accuracy"
+actual = test$Attrition
+formula = Attrition ~ .
+positive = "Yes"
+
+set.seed(123)
+ctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 5, classProbs = FALSE)
+orig_fit <- train(formula, data = train, method = "rpart", metric = metric, trControl = ctrl)
+
+kappa_fit <- train(formula, data = train, method = "rpart", metric = "Kappa", trControl = ctrl)
+
+weight = table(train$Attrition)["No"] / table(train$Attrition)["Yes"] 
+model_weights <- ifelse(train$Attrition == "Yes", weight, 1)
+weight_fit <- train(formula, data = train, method = "rpart", metric = metric, weights=model_weights, trControl = ctrl)
+
+FN_cost = 4
+FP_cost = 1
+cost_fn <- train(formula, data = train, method = "rpart", metric = metric, 
+                    parms=list(loss=matrix(c(0,FP_cost,FN_cost,0), byrow=TRUE, nrow=2)), 
+                    trControl = ctrl)
+
+FN_cost = 1
+FP_cost = 4
+cost_fp <- train(formula, data = train, method = "rpart", metric = metric, 
+                    parms=list(loss=matrix(c(0,FP_cost,FN_cost,0), byrow=TRUE, nrow=2)), 
+                    trControl = ctrl)
+
+ctrl$sampling = "down"
+down_fit <- train(formula, data = train, method = "rpart", metric = metric, trControl = ctrl)
+
+
+ctrl$sampling = "smote"
+smote_fit <- train(formula, data = train, method = "rpart", metric = metric, trControl = ctrl)
+
+ctrl$sampling = "down"
+metric="Kappa"
+all_fit <- train(formula, data = train, method = "rpart", metric = metric, trControl = ctrl)
+```
+
+
+# Performance Assessment
+
+Here's a summary of the performance of all of the techniques.
+
+```{r}
+assessModel = function(m_name, m){
+  pred = predict(m, newdata=test)
+  a = caret::confusionMatrix(data=pred, reference=actual, positive=positive, dnn=c("Predicted", "Actual"))
+  res1 = data.frame(name=m_name, 
+                   accuracy=a$overall["Accuracy"], 
+                   precision=a$byClass["Precision"],
+                   recall=a$byClass["Recall"],
+                   specificity=a$byClass["Specificity"],
+                   kappa=a$overall["Kappa"])
+  res1
+}
+
+res = data.frame(name=character(), accuracy=numeric(), precision=numeric(), recall=numeric(), specificity=numeric(), kappa=numeric())
+res = rbind(res, assessModel("orig", orig_fit))
+res = rbind(res, assessModel("kappa", kappa_fit))
+res = rbind(res, assessModel("weights", weight_fit))
+res = rbind(res, assessModel("cost fn", cost_fn))
+res = rbind(res, assessModel("cost fp", cost_fp))
+res = rbind(res, assessModel("down", down_fit))
+res = rbind(res, assessModel("smote", smote_fit))
+res = rbind(res, assessModel("all", all_fit))
+row.names(res) = NULL
+res
+```
+
+
+```{r}
+# Function to show the confusion matrix and resulting tree
+showResults = function(model){
+  pred = predict(model, test)
+  print(caret::confusionMatrix(data=pred, reference=actual, positive=positive, dnn=c("Predicted", "Actual")))
+  rpart.plot(model$finalModel, extra=2, type=2)
+}
+```
+
+Here are the details of the performance of each technique.
+
+## Original
+
+```{r}
+showResults(orig_fit)
+```
+
+## Kappa
+
+```{r}
+showResults(kappa_fit)
+```
+
+## Weights
+
+```{r}
+showResults(weight_fit)
+```
+
+## Costs - High FP cost
+
+```{r}
+showResults(cost_fp)
+```
+
+## Costs - High FN Cost
+
+```{r}
+showResults(cost_fn)
+```
+
+## Down sampling
+
+```{r}
+showResults(down_fit)
+```
+
+## All
+
+```{r}
+showResults(all_fit)
+```
+
