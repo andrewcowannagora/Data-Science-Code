@@ -1,0 +1,102 @@
+---
+title: "Exercises"
+subtitle: "R Tutorial II"
+output: 
+  html_document: 
+    theme: cosmo
+---
+***
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Workshop - Let's Download the File
+
+```{r}
+#Load all required packages (you may need to install some)
+library (dplyr)
+library (readr)
+library (ggplot2)
+library(data.table)
+library (ggthemes)
+
+#Get the file from a shared Google Drive
+url <- "https://drive.google.com/open?id=0B455kon52W0GNFgtTVRRUjAyNTA"
+
+file <- "C:/Users/bkent/Downloads/simpsons_episodes.csv"
+
+simpsons <- read_csv(file)
+simpsons
+
+```
+
+# WORKSHOP - DATA MANIPULATION
+##1 - Create a new variable for high / low ratings based on imdb_rating over 7.5 and then count low rating shows by season.  Hint you should use the chain operator **%>%.
+
+
+```{r}
+#Code in here
+
+```
+
+##2 - Looking at seasons 3-5, find the top 3 shows with the highest US Viewers sorted descending by viewers
+
+
+```{r}
+#Code in here
+
+```
+
+
+# WORKSHOP - FUNCTIONS
+##3 - Build a Custom Function
+
+The function needs to take any data set.  It needs to return a filtered dataset where the user can specify a column, a maximum and a minimum.  The default minimum should be zero. The function should return the filtered data set.   Use the function on the simpsons data set to get the number of shows where they had less than 30 million viewers but more than 15 million.
+
+```{r}
+
+#Code in here
+
+```
+
+# WORKSHOP - GRAPHING
+##4 - Plot Trending of US Viewers vs. Episode Number 
+
+
+```{r}
+#Code in here
+
+  
+```
+
+
+##5 - Plot IMDB Rating vs. Season 
+
+```{r}
+#Code in here
+
+
+```
+
+
+##6 - Show the Relationship Between IMDB Ratings and US Viewers
+
+```{r}
+#Code in here
+
+```
+
+
+
+##7 - Graph by Season the Shows With Over 25M Viewers OR IMDB Rating Over 8 
+
+```{r}
+
+#Code in here
+
+```
+
+
+
+
+

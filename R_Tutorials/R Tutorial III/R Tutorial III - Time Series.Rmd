@@ -1,0 +1,71 @@
+---
+title: "R Session III - Time Series"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+## Time Series 
+
+``` {r}
+require  (forecast)
+data (gas)
+
+
+```
+
+
+Time series data can be considered to have 3 parts:
+
+1. **Seasonal** - this could be daily, weekly, quarterly or monthly 
+2. **Trend** - a longer term movement in the data
+3. **Random** - remaining noise that doesn't fit into the above two
+
+Time series analysis takes no other information into account.  So, things like weather, economic factors, etc. that would impact your data won't be factored.
+
+The **decompose** function will take a time series and break it into these components.
+
+``` {r}
+
+plot (decompose(gas))
+
+```
+
+
+The **forecast** function is the predict counter-part.   If it doesn't have a model, it wil run a model for you using exponential triple smoothing.
+
+**forecast (data, h, level, model)**
+**data** - the series we were forecasted
+**h** - how many periods in the future to forecast
+**level** - the range for the confidence intervals (defaults to 80% and 95%)
+**model** - tif you want to specify the model
+
+``` {r}
+
+f <- forecast (gas, h=3, level=.9)
+f
+
+arima <- auto.arima(gas)
+
+f2 <- forecast (gas, h= 3, level = .9, model = arima)
+f2
+
+```
+
+We can also plot the forecasts pretty easily
+
+``` {r}
+
+plot(f)
+
+```
+
+```{r}
+summary (f)
+summary (f2)
+
+```

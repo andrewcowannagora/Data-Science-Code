@@ -1,0 +1,170 @@
+---
+title: "Using dplyr for Data Manipulation"
+subtitle: "R Tutorial II"
+output: 
+  html_document: 
+    theme: cosmo
+---
+***
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Data manipulation can be hard especially if you aren't used to coding.   You will spend most of your time manipulating data so making it easier can be provide a huge payoff.
+
+**dplyr** is useful for several reasons:
+
+1. It provides a very simple but powerful framework to manipulate data
+2. Using the sparklyr package you can execute jobs in Spark
+3. It's fast.   It can be faster than using base R.
+4. It's easier to read and write.
+
+
+```{r }
+library (dplyr)
+library (ggplot2)
+data (mpg)
+```
+
+## Key Functions
+
+filter() - *reduces the rows in a dataset*  
+mutate() - *adds a derived column to a dataset*  
+sample_n() / sample_frac() - *selects a sample of rows*  
+summarise() - *provides stats that summarise aggregated data*  
+arrange() - *sorts a data set*
+top_n() - *filters to the top X of a data set*
+group_by() + tally() - *group a table by a column(s) and tally will aggregate everything on it*
+
+#### Filter
+
+Let's start by filtering the data set for only Audi data from 1999
+
+```{r}
+
+audi_mpg <- filter (mpg, manufacturer == "audi" & year == 1999)
+audi_mpg
+```
+
+#### Mutate
+
+Let's create a simple varible for engines with over 3L displacement.
+
+```{r}
+mpg <- mutate (mpg, large_engine = ifelse (displ > 3, 1,0))
+glimpse (mpg)
+
+```
+
+Note the use of the function **glimpse** here.   It works similar to str() but has the nice benefit of fitting the screen with the output better in more scenarios.
+
+#### Sample N / Sample Frac
+
+Sampling is made easy with the sampling functions.  Here's a vanilla sampling where we take 10 observations from the data set.
+
+
+```{r}
+sample_n (mpg, size = 10)
+```
+
+Even better, a stratified sample (sampling with a fraction from subsets) is also possible very easily.
+
+```{r}
+mpg_grouped <- group_by (mpg, class)
+sample_frac (mpg_grouped, size = .1)
+
+```
+
+#### Group By and Tally
+
+Let's simply aggregate some of the data by manufacturer.
+
+```{r}
+mpg_grouped <- mpg %>%
+  group_by(manufacturer) %>%
+  tally(sort = TRUE)
+mpg_grouped
+  
+```
+
+#### Summarise
+
+Summarise can be used to apply functions on datasets returning a single value.   If we  
+
+```{r}
+summarise (mpg, mean (cty, na.rm = TRUE))
+```
+
+If you use the group by function, it will return it for each attribute we've grouped upon.  Summarise can be used for basic or complicated functions.   
+
+The **n** function can be used to get the count of observations.  **n_distinct** counts the unique values.
+
+```{r}
+
+half_sum <- function(x){sum(x/2)}
+
+mpg %>%
+  group_by (manufacturer) %>%
+  summarise (mean (cty), cnt = n(), halfsum = half_sum(cty))
+
+```
+
+Note that in the above example I created a custom function and used it in the summarise section.   This means you can leverage any complicated function you want within this approach.
+
+## Chaining
+
+Working with datasets often requires a series of transformations and doing them line by line isn't efficient.  So, we can link steps together in a series using a special operator.  **%>%** is placed at the end of each line of code.
+
+```{r}
+summary_mpg <- mpg %>%
+  group_by (manufacturer, model) %>%
+  filter (year == 1999) %>%
+  summarise (avg_cty = mean(cty), avg_hwy = mean(hwy), cnt = n()) %>%
+  filter (avg_cty < 15)
+
+summary_mpg
+
+#ggplot (summary_mpg, aes (y = avg_cty, x=model))+
+#  geom_jitter()+
+#  coord_flip()
+
+```
+
+
+#### Arrange and Top N
+
+Let's now use the data set we just created and arrange it by descending City MPG.
+
+```{r}
+
+audi_mpg <- filter (mpg, manufacturer == "audi" & year == 1999) %>%
+  arrange (desc(cty))
+audi_mpg
+```
+
+
+Using that data set, we can now easily add a filter of the top 3 Audi's made in 1999
+
+```{r}
+
+audi_mpg <- filter (mpg, manufacturer == "audi" & year == 1999) %>%
+  arrange (desc(cty)) %>%
+  top_n (3, cty)
+audi_mpg
+```
+
+Since we have a tie, the program cannot provide just 3 without arbitrarily breaking the tie.   Thus we get 4 results!
+
+
+
+
+
+## Remote Data Connections - SQL & Spark
+
+AS an added bonus, when querying data from other data sources you can leverage dplyr the same way you'd use dplyr on a local R dataframe.   
+
+This works on SQL databases (sqlite, mysql, postgresql).   It can also work with a spark cluster.
+
+Here's a walkthrough on SQL [link](https://datascienceplus.com/working-with-databases-in-r/).  
+Here's a walkthrough on using Spark [link](http://spark.rstudio.com/).  

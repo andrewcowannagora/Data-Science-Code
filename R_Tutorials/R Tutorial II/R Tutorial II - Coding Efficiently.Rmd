@@ -1,0 +1,142 @@
+---
+title: "Coding Efficiently"
+subtitle: "R Tutorial II"
+output: 
+  html_document: 
+    theme: cosmo
+---
+***
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+``` {r include = FALSE}
+library (ggplot2)
+data ("mpg")
+
+```
+
+
+Less is more.   Being efficient with your code is critical.  So what makes for good coding?
+
+
+##Replicated Code
+
+``` {r}
+
+sub_mpg <- mpg [mpg$manufacturer == "audi", ]
+ggplot (sub_mpg, aes (y = cty, x = factor (year)))+geom_jitter(width=.2)+geom_violin(alpha = .25)
+```
+
+
+````{r}
+sub_mpg <- mpg [mpg$manufacturer == "dodge", ]
+ggplot (sub_mpg, aes (y = cty, x = factor (year)))+geom_jitter(width=.2)+geom_violin(alpha = .25)
+
+```
+
+What happens if you wanted to run more manufacturers? Easy to copy and paste, right? 
+
+## DRY Principle
+
+**DRY** stands for DONT REPEAT YOURSELF. One simple principle is to avoid writing the same code.  Writing the same code has a few risks.
+
+1. Coding is slower
+2. Changing the code becomes harder
+3. Errors are more likely
+4. Fixing and preventing errors can be harder 
+
+
+##Using Variables in Your Script
+
+One simple tip is to never hardcode anything.   Using variables at the top of your script can make it easily reusable.
+
+``` {r}
+
+#Variables
+car_mnf = "audi"
+n_clusters = 2
+columns = c("cty", "cyl")
+
+#Now Use Them
+K <- kmeans (mpg [mpg$manufacturer==car_mnf,c(columns)], centers = n_clusters)
+K
+
+```
+
+##Custom Functions
+
+R allows you to define a function of your very own.   This can be exceptionally useful to automate code even more.   The return function is what will pass the result back when you run the function.   If you don't specify it, the last line will be used.
+
+``` {r}
+
+#Let's build a function that doesnt exist in R
+
+power_fun <- function (x, n = 2)
+{
+  return (x^n)
+}
+
+```
+
+```{r}
+power_fun (3)
+```
+
+```{r}
+power_fun (3, 3)
+```
+
+####Function Parameters
+Functions have parameters which are passed to it when we call it.   In the example above, there are two parameters **x** and **n**.   **x** is a mandatory variable that must be passed.   **n** is optional with a default value of 2.
+
+####Chaining Functions
+You can use functions (custom ones or out of the box ones) within custom functions.  
+
+
+```{r}
+
+log_sq <- function (x)
+{
+  log (power_fun(x))
+}
+
+log_sq (3)
+
+```
+
+The ability to create and chain functions can significantly improve your speed to code and the ability for you to maintain code in the future.
+
+
+##Coding as Teams
+Say you have a team working on analytical problems.   You build a nifty function (or sets of functions).   Your team wants to use them.   What do you do?
+
+```{r}
+
+ConnectToDB <- function(userID)
+{
+  #magic
+}
+
+
+myconnection <- ConnectToDB("bkent")
+
+```
+
+You can copy and paste this into every script your team uses but you may run into issues:  
+
+Maintainability - *It's harder to edit your function because everyone has copied it. To edit it, you need to find all versions of it. Editing the function becomes tedious and you risk having different versions used by your team*
+
+```{r eval = FALSE}
+source ("myscript.r")
+```
+
+If you save all the files into a .r file, you can then load all the functions you want using **source()** . This will work as if you copied and pasted these into your script and ran them. This way you can safely edit them in a single place.
+
+Although beyond the scope of this module, you can also build your own package to enable your team to work even more productively.   See [link](http://monashbioinformaticsplatform.github.io/2015-09-28-rbioinformatics-intro-r/08-making-packages-R.html) for a guide.
+
+
+
+
+

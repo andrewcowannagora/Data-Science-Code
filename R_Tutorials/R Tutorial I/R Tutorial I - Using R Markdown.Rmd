@@ -1,0 +1,46 @@
+---
+title: "Using R Markdown"
+output: 
+  html_document: 
+    theme: cosmo
+---
+***
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## What and Why Markdown?
+
+Markdown allows you to write more than code.   It takes a basic script and makes it a pdf report, a html webpage or simply allows for more interactive coding.  A simple use case is an analysis that you routinely create - it can be created easily as a markdown document and then updated on live data.
+ 
+
+For a full guide you can see a simple cheatsheet guide [here](https://www.rstudio.com/wp-content/uploads/2015/02/rmarkdown-cheatsheet.pdf).   There's a full write up [here](http://rmarkdown.rstudio.com/articles_intro.html).
+
+## Basics
+
+The basics of markdown are simple.   The following below establishes a block of R code.
+
+```{r}
+
+```
+
+
+## Basic Formating
+
+1. headers - use # to create a header
+2. bolding - you can bold text by wrapping it in double asterisks like **this**
+3. links can be embeddded by using formating like this [link](rstudio.com)
+4. bullets and numbered lists - you can use single asterisks for bullets or numbers with a period
+
+## Inline Coding
+
+You can also insert code with dynamic data which is great for reporting   For instance, Pi is equal to `r 3+.14`.
+
+## Executing Code
+
+You can execute code in a variety of ways:
+
+1. Line by line.   Simply put your cursor on the line you want to execute and you can hit **CTRL + ENTER**
+2. A block at a time.   You can execute a block of code by hitting the 'play' button in the top right of the window.
+3. The full script.  You can execute the full script by hitting the 'knit' button at the top.   This will compile all code and create the document.

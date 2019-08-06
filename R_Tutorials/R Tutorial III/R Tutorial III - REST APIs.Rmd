@@ -1,0 +1,92 @@
+---
+title: "Rest APIs"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## REST APIs - What are they and why should you care?
+
+APIs are ways to interact using only HTTP with systems.   They're incredibly versatile and incredibly popular.  As an analyst, you should at minimum know how to pull data using APIs.   Examples of APIs that you can pull from include:
+
+* Clickstream (Google Analytics)
+* Weather
+* Financial Data
+* Social Media
+
+Most APIs will require you to create a developer account and some may charge you.   This is mostly so that the owner of the API can minimize the likelihood of people abusing the APIs.   Since I can't give everyone the same API Key, you cannot just run this script.  APIs may required different types of ways to authenticate and you'll only know this by reading the documentation from the API but it's generally pretty simple.   I'm showing an approach below where we simply pass our key into the API call.
+
+REST is a specific protocol for APIs.   REST APIs will behave similar making it easy to leverage without knowing much else about the system and they are now a gold standard.
+
+With APIs you can usually **get** data out or **post** new data.   The most common way data is transmitted is a format called JSON (javascript object notation).   This has a solid description of JSON format: https://developers.squarespace.com/what-is-json
+
+So to interact with rest you generally will want a package to help you communicate via HTTP and another package to manipulate JSON files.   Thankfully R has lots of these.
+
+
+```{r}
+#install.packages('httr')
+#install.packages('jsonlite')
+
+library (httr)
+library (jsonlite)
+```
+
+## Getting from APIs
+
+There are multiple ways you can interact with APIs but the most important one for any analyst is likely the **GET** method.   https://en.wikipedia.org/wiki/Representational_state_transfer has a table showing the different types of interactions.
+
+The GET method does just that, it retrieves a payload of data (almost always in JSON format).   This is important because 
+
+```{r}
+
+#The key is your password to using the application - do not let others see it
+key <- '9f3fc1fae56e647523cdfb0ea8f624b0'
+
+#This is the 'end point' of the API
+url <- 'api.openweathermap.org/data/2.5/weather?q='
+
+getCity <- function  (city)
+{
+  print(paste0("Getting weather for ",city))
+  call <- paste0(url,city,'&appid=',key)
+  #call <- 'api.openweathermap.org/data/2.5/weather?q=London,uk&APPID=50ca356e4e4f2f216c784635c31a5a2d'
+  payload <- GET(call)
+  if (status_code(payload) == 200) {data_payload <-as.data.frame (fromJSON(content(payload, "text"), flatten=TRUE))} else {data_payload <- NULL}
+  return (data_payload)
+}
+
+weatherTo <- getCity ("Toronto,CA")
+weatherTo
+
+```
+
+There are a few key elements that are returned when you call an API.
+1) A status code indicating success or failure 
+2) A payload of data back to you if you are 
+
+
+
+
+```{r}
+
+cities <- c("Vancouver", "Calgary", "Toronto", 'Montreal', 'Halifax')
+
+#Take the list of cities and get the weather for each city
+results <- lapply (cities, getCity)
+results
+
+```
+
+##JSON Consistency
+It should be noted that JSON will not always produce the exact same results.   It's considered semi-structured and where fields aren't available, the records are simply not provided.   Therefore you need to be able to build processes that are resilient to this.   The API documentation may provide that detail.   
+
+In this example, Calgary provides a slightly different set of columns.   If you need it in a single dataframe you need to drop or add columns to get consisency.   After that you can glob the results together.
+
+```{r}
+
+colnames (results [[2]]) [!colnames(results[[2]]) %in% colnames(results[[1]])]
+
+```
+

@@ -1,0 +1,74 @@
+---
+title: "R Session I - Working with Files"
+output: 
+  html_document: 
+    theme: cosmo
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Working Directory
+
+When you read or write files, there is a default location which is called the **'working directory'**.  
+
+**getwd()** shows where your working directory will be.
+
+
+
+```{r}
+getwd()
+
+```
+
+
+If you want to change that directory use **setwd()**.  
+
+```{r}
+#setwd ("c:/R")
+```
+
+
+## Reading and Writing Files
+
+If you want to save your data sets you have a few options.  
+
+### R Objects
+
+Any thing in memory can be stored as a R object to file.   It will preserve the exact formating and content of the file.  Of course, all of this will happen in your working directory.
+
+**save()** will write the R object.
+**load()** will load the R object into memory.
+
+```{r}
+data (iris)
+save (iris,file = "iris.r")
+load ("iris.r")
+```
+
+When you want to save outputs of models or other odd objects, you will need to use this method.   
+
+
+### CSV (or other) Files
+
+For things like dataframes, you often want to write to standard files like CSV.   The biggest advantage is that this file format can be read/used by other programs.
+
+```{r}
+write.csv (iris, file = "iris.csv", row.names = FALSE)
+iris <- read.csv ("iris.csv")
+```
+
+
+## Working with Databases
+
+Ideally you will be reading your data from a database.  For almost any type of database, you will find a connector to it.   We want go through the details because it will depend on the database you are using.  You will likely need a database driver installed on your machine with the right package.
+
+For best practice, you should do as much of your work on the database and limit R to only what you can't do on the database.
+
+**Packages:**  
+1. RODBC  
+2. RJDBC  
+3. RMySQL   
+4. RPostgreSQL   
+

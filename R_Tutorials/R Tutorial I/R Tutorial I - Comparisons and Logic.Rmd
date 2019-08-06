@@ -1,0 +1,117 @@
+---
+title: "R Session I - Logic, Comparisons and NA"
+date: "June 4, 2017"
+output: 
+  html_document: 
+  theme: cosmo
+---
+  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+##Logic and Comparisons
+
+A comparison between two values results in either a **TRUE** or a **FALSE** value being returned.
+
+```{r}
+#Is 1 equal to 1?
+1 == 1
+
+```
+
+
+
+1. **==** equal to 
+2. **!=** not equal to
+3. **>** greater than
+4. **<** less than
+5. **|** OR
+6. **&** AND
+7. **!** Not
+8. **%in%** In - compares set
+
+```{r}
+#Does 1 equal 1 and 2 = 1
+(1==1)&(2==1)
+
+```
+
+
+So, how does this work with vectors? 
+
+1. Remember that when you compare two vectors, you compare each element at a time.
+2. If you compare a single value to a vector, it takes that single value and compares it to each element in the vector.
+
+```{r}
+a <- c(1,2,3,4)
+b <- c(1,2,3,4)
+a == b
+```
+
+```{r}
+
+a == 1
+```
+
+Now let's compare using **%in%**.  It compares the items on the left and returns a TRUE/FALSE if they exist in the set on the right.
+
+```{r}
+
+c(1,2) %in% a
+
+```
+
+
+
+##NA Values
+
+When a data set has a value that is missing (i.e. no value exists), it is **NA**.  Depending on the task in R, you will need to replace these with real values.   Some functions will treat NA by ignoring them.
+
+1. **is.na()** will check a vector for any NA values returning a TRUE/FALSE vector
+2. **na.omit()** will remove rows that contain NA
+3. **complete.cases()** will check a dataframe row-by-row for NA values returning a TRUE/FALSE vector.
+
+
+```{r}
+a <- c(NA, 1, 2, 3)
+is.na (a)
+
+```
+
+When we do calculations, we need to determine how to treat the values.  When we average a number, how should we treat NA?  Do we ignore them or do we return a signal that it failed?
+
+
+```{r}
+mean (a)
+
+```
+
+Some functions will have a parameter (an optional switch), that allows you to ignore them.
+
+```{r}
+mean (a, na.rm=TRUE)
+
+```
+
+##Square Bracket Operator and Logical Vectors
+
+Ok, so we know we can use the **[]** to subset a vector or dataframe.  We mostly used numeric positions to indicate what we wanted or didn't want.  However, the far more powerful thing is to use TRUE/FALSE vectors.
+
+```{r}
+#Let's remove all values from 'a' that are NA
+#Since is.na() returns TRUE if NA, we want to reverse that so we use the '!' to reverse the TRUE and FALSE
+
+a[!is.na(a)]
+
+```
+
+The above method can be used to filter data or check any type of condition you want.
+
+```{r}
+a [a > 2]
+
+```
+
+Here we check whether the values of 'a' are greater than 2, if they are we will retrieve them.

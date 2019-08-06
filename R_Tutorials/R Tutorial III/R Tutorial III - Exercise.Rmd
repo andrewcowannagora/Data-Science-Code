@@ -1,0 +1,29 @@
+---
+title: "R Session III - Exercise"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Let's Build a Model
+
+1. Install the caret package
+2. Load the GermanCredit Data
+3. Split your dataset (test/validation)
+4. Train your model
+5. Score the validation data
+6. Measure Performance
+
+
+
+
+``` {r}
+require (caret)
+require (dplyr)
+
+data ("GermanCredit")
+
+
+```

@@ -1,0 +1,123 @@
+---
+title: "R Session I - Exercise"
+output:   
+  html_document: 
+    theme: cosmo
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Part 1
+
+1. First map your local directory to something you prefer using setwd().
+2. Load the CSV into R and save it to a dataframe named “springleaf”
+3. How many rows and columns are there? What’s the total cell count?
+4. Run the summary() function on the first 10 columns of the dataset
+5. Create a new variable (separate from the springleaf dataframe) that stores the length of the ID variable in the springleaf dataframe
+
+
+```{r}
+
+#setwd(“c:/”) - I won't use it since I'm on a linux server
+springleaf <- read.csv (file = "springleaf_small.csv")
+nrow(springleaf)
+ncol(springleaf)
+nrow(springleaf)*ncol(springleaf)
+summary (springleaf[,1:10])
+ids <- length (springleaf$ID)
+
+```
+
+## Part 2
+
+1. Look up the complete.cases() function in help and read what it does.
+2. Now use the complete case function to generate a logical vector. Now try to pass that vector into the function table () which we will cover soon.   What would you conclude about the data set?
+3. Now check the variable VAR_0237… what type is it? Now, determine the proportion of states that are either CA, NY or NJ?
+4. Let’s add a TRUE / FALSE variable for whether the state is in the CA/NY/NJ list to our exising springleaf dataframe
+
+
+```{r}
+
+complete.cases (springleaf)
+table (complete.cases (springleaf))
+str (springleaf$VAR_0237)
+table ((springleaf$VAR_0237) %in% c("CA", "NY", "NJ"))
+springleaf$VAR_0237 %in% c("CA", "NY", "NJ")
+springleaf$IsLiberal <- springleaf$VAR_0237 %in% c("CA", "NY", "NJ")
+
+
+```
+
+## Part 3
+
+1. Try running table (is.na()) on VAR_0207, VAR_0213 and VAR_0840
+2. Now let’s remove these 3 columns.   One simple way is to use:  springleaf$VAR_0207 <- NULL
+3. Try running complete.cases() again without those 3 variables
+4. Next let’s try to run the mean VAR_0006.
+5. Fix the issue by using the parameters in the mean function.
+
+
+
+
+```{r}
+
+
+table(is.na (springleaf$VAR_0207))
+table(is.na (springleaf$VAR_0213))
+table(is.na (springleaf$VAR_0840))
+
+springleaf$VAR_0207 <- NULL
+springleaf$VAR_0213 <- NULL
+springleaf$VAR_0840 <- NULL
+
+mean (springleaf$VAR_0006)
+mean (springleaf$VAR_0006, na.rm = TRUE)
+
+
+```
+
+
+## Part 4
+
+1. Run the mean, median and quartile functions for VAR_0583.
+2. Do you see an issue with the data?
+3. Can you fix the issue and create a new cleaned variable?
+
+```{r}
+
+mean (springleaf$VAR_0583)
+median (springleaf$VAR_0583)
+quantile (springleaf$VAR_0583)
+
+a <- springleaf$VAR_0583
+table (cut (a, c(-Inf, mean (a) - 1.5*sd(a), mean(a)+1.5*sd(a), Inf)))
+springleaf$VAR_0583 [springleaf$VAR_0583 > 8.91e+08] <- NA
+quantile (springleaf$VAR_0583, na.rm = TRUE)
+
+```
+
+## Part 5
+
+1. Let’s create two data sets, one for training (75%) and one for validation (25%).
+2. Use table to validate that the target variable proportion is consistent between the two data sets. 
+3. Validate that all IDs have been allocated to either test or validation
+
+
+```{r}
+
+validationIDs <- sample (springleaf$ID, nrow(springleaf)*.75)
+validation <- springleaf[springleaf$ID %in% validationIDs,]
+test <- springleaf[!(springleaf$ID %in% validationIDs),]
+
+prop.table (table (validation$target))
+prop.table (table (test$target))
+
+table (springleaf$ID %in% c(test$ID, validation$ID))
+
+
+```
+
+
+
+

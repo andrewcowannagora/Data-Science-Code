@@ -1,0 +1,232 @@
+---
+title: "Classification Modeling"
+subtitle: R Tutorial III
+output:
+  html_document:
+    theme: cosmo
+  pdf_document: default
+---
+***
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+##Loading Our Data Set
+
+``` {r, echo = FALSE,message=FALSE}
+#install.packages ("kernlab")
+library (kernlab)
+library (dplyr)
+library (caret)
+library (rmarkdown)
+
+```
+```{r}
+
+data (spam)
+str (spam)
+
+```
+##Some PreProcessing Steps
+
+You will spend most your time here, sadly.  Caret has some handy functions which can make it easier for you to get a data set ready for modeling.
+
+### Near Zero Variance
+
+*nearZeroVar ()* will go through a data frame and return a diagnosis about whether some of your variables are useless for modeling.   For example, any column with a constant value will obviously not be useful but some columns that are nearly constant will be just as useless worht removing.
+
+```{r}
+
+nzv <- nearZeroVar (spam, saveMetrics = TRUE, freqCut = 500/1, uniqueCut = round(nrow (spam)*.001))
+
+#Here's a printout by variable
+nzv
+
+#% of Data is unlikley to be useful
+sum(nzv$nzv)/ncol (spam)
+spam <- spam [,!nzv$nzv]
+
+```
+
+### Highly Correlated Variables
+
+If you're using regression, you may need to address the colinearity of your variables.   In other modeling, it may be helpful to clean up a dataset with lots of possible predictors that are similar.
+
+```{r}
+
+cor_mat <- cor (spam [,!(colnames(spam) %in% c("type"))])
+summary(cor_mat[upper.tri(cor_mat)])
+
+#Let's identify any variables with more than 65% correlation; note I personally wouldn't set this that low
+high_corr <- findCorrelation(cor_mat, cutoff = .65)
+
+#We will remove those variables and recalculate
+spam <- spam [,-high_corr]
+cor_mat <- cor (spam [,!(colnames(spam) %in% c("type"))])
+summary(cor_mat[upper.tri(cor_mat)])
+
+```
+
+##Splitting Your Data
+
+The first step to getting our data ready is to split our data set into test and control.   There's a lot to this step and it's worth reading more about various ways to do it.  The basic approach is to use a 80/20 split. 
+
+A great article can be found here: http://sebastianraschka.com/blog/2016/model-evaluation-selection-part3.html
+
+The caret package includes a very handy function *createDataPartition()* that will handle your basic model spliting.  By default, if you pass it the variable you are predicting, it will stratify your sampling to ensure each split has a consistent mix of your classes.  This can be especially critical if your classes are unbalanced.
+
+``` {r}
+
+trainIndex <- createDataPartition(spam$type , p = .75, list = FALSE, times = 1)
+head (trainIndex)
+
+train <- spam [trainIndex,]
+test <- spam [-trainIndex,]
+
+#Let's confirm that everything adds up
+nrow (train)+nrow (test)==nrow (spam)
+
+```
+
+###K Fold Cross Validation
+One issue with the basic approach is that the models performance will be somewhat random based on the sampling. Your estimates of how good your model really is are subject to sampling.  
+
+K Fold splits your data into K groups(or folds) and uses one to train and the rest to validate, then repeats using a different fold.   The output of this can give you the  **average** and the **standard deviation** of the model performance.  This is especially useful when you're comparing multiple models because accurate estimates are critical.
+
+To apply this, you can specify this using the function *trainControl()*.   This acts as a guide on how you want caret to apply your training.   This function has an incredibly robust set of capability including down or up sampling, applying preprocessing to the data, parameter tuning, etc.
+
+```{r}
+#We will apply 5 fold cross validation to our data
+ctrl <- trainControl (method = "cv", number = 10, classProbs = TRUE)
+
+```
+
+
+##Train Your Model
+
+Now we'll start the process to train a model with Caret.   We use the **train** function and specify the type of model we want to train.  
+
+We can use the following form:
+
+**train(formula, data, method, parameters)**
+
+**formula** - typically R uses the form of **Y ~ X + X1**.   If we want to use all variables it can be annoying to type them all so you can use **Y~.**.
+**data** - the data frame you are using which needs to include the dependent and independent variable.
+**method** - the model you want to use
+**parameters** - the various parameters needed in a model
+
+Like everything in R, the model and all its contents are also objects.
+
+
+Full list of models can be found here: https://topepo.github.io/caret/available-models.html
+
+Here's a key short list
+
+1) Decision Tree - rpart
+2) Naive Bayes - nb
+3) K- Nearest Neighbours - KNN
+4) Random Forest - rf
+5) Logistic Regression - glm
+6) Extreme Gradient Boosted Trees - xgbTree
+
+``` {r}
+
+mod_glm <- train (type~., data = train, method= "glm", family = "binomial", trControl = ctrl)
+print (mod_glm)
+
+```
+
+
+
+We now have an object called mod_glm which we can use to predict.
+
+**predict** allows us to use a model on a new data set.  It takes the form of **predict (model, newdata)**.
+
+
+``` {r}
+predictions <- predict (mod_glm, test)
+table (predictions)
+```
+
+
+By default, *predict()* returns the expected class.  If you want the probabilities for each class, you can use the parameter type = "prob".
+
+``` {r}
+
+summary (predict (mod_glm, test, type = "prob"))
+
+```
+
+##Measuring Model Performance
+
+To build good models you need to accurately measure their performance.   There isn't a single way to do this - it depends on what you're trying to do.  
+
+Many ways to measure 'performance' - you need to know your business problem.
+**Accuracy** - Share of correctly classified observations
+**Precision (Positive pred value)** -How accurate are we in positive predictions?
+**Recall (Sensitivity)** - What % of the actual positives can we accurately predict?
+**F1 Score** - The harmonic mean between Recall & Precision
+
+Accuracy is often used by itself but has it's limitations so it's worth considering the article below.
+
+http://machinelearningmastery.com/classification-accuracy-is-not-enough-more-performance-measures-you-can-use/
+
+Caret has a great function to make measuring performance easier.  
+
+``` {r}
+confusionMatrix (predictions, test$type, "spam")
+
+```
+
+
+
+
+``` {r}
+#Now we can train multiple models very easily
+mod_xgbtree <- train (type~., data = train[,!(colnames (train) %in% "ID")], method= "xgbTree", trControl = ctrl)
+mod_tree <- train (type~., data = train[,!(colnames (train) %in% "ID")], method= "rpart", trControl = ctrl)
+mod_blogit <- train (type~., data = train[,!(colnames (train) %in% "ID")], method= "LogitBoost", trControl = ctrl)
+mod_rf <- train (type~., data = train[,!(colnames (train) %in% "ID")], method= "rf", trControl = ctrl)
+
+```
+
+
+``` {r}
+confusionMatrix(predict(mod_glm, test), test$type, "spam")
+confusionMatrix(predict(mod_xgbtree, test), test$type, "spam")
+confusionMatrix(predict(mod_tree, test), test$type, "spam")
+confusionMatrix(predict(mod_blogit, test), test$type, "spam")
+confusionMatrix(predict(mod_rf, test), test$type, "spam")
+```
+
+## Understanding Your Model Drivers
+
+A key task is understanding which variables are important to you model.   This can both help you detect problems and help you feature engineer new features.
+
+*varImp()* is a function that you have in caret that will give you the variables importance for some models.   Since each model is different how variable importance is determined varies.
+
+If you see a variable as the #1 with nothing close to it and your model is very strong, you likely have data leakage which is critical to fix.
+
+```{r}
+varImp(mod_glm)
+
+```
+
+
+## Ensembles == Free Lunch (Almost)
+
+If you ever read a management textbook, you hear people preach how diverse opinions make for better decision making.  Democracy is better than autocracy.  This actually holds true for models.   Several models working together can outperform very powerful models.
+
+**Bagging** - Take several weak models and combining their predictions together.  The basic forms either average the probabilities or pick the class that is most commonly selected.
+
+**Stacking** - Take several models, score each record with all the models and then use those scores in another model.  This can be repeated multiple times.
+
+*caretEnsemble* is an entire package dedicated to ensembles with caret and worth looking into.
+
+https://cran.r-project.org/web/packages/caretEnsemble/vignettes/caretEnsemble-intro.html
+
+
+The only downside to this approach is the engineering weight of maintainin multiple models.   Given today's elastic computing resources, it's a trvial price to pay.
+
+

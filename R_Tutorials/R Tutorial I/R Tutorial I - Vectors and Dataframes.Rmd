@@ -1,0 +1,139 @@
+---
+title: "R Session I - Vectors and Dataframes"
+output: 
+  html_document: 
+    theme: cosmo
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Defining and Creating Vectors
+
+A variable is a single data point - it could be a character or a numerical value.  A vector is a set of variables of the same type. In other programming languages you may have referred to them as arrays.  They are created by the function **c()** - combine.
+
+```{r}
+
+numbers <- c(1,2,3)
+characters <- c("a", "b", "c")
+
+```
+
+```{r}
+characters
+```
+
+```{r}
+numbers
+```
+
+
+## Using Vectors
+
+With a vector, you can apply functions against them.  This will work on each item in the vector and create a new vector.  For example:
+
+```{r}
+numbers*2
+```
+
+You can also have two vectors and do operations between them.   The below code will take each item and multiply it by the item in the same position.   
+* 1*1
+* 2*2
+* 3*3
+
+```{r}
+numbers*numbers
+```
+
+You can also create vectors easily using the **:** operator.  It will generate a vector from one value to another value.  Note that I don't need to use the **c()** operator as it knows that it's a vector.
+
+```{r}
+1:10
+
+```
+
+
+## Dataframes
+
+A dataframe is the most important type of data structure you'll work with in R.   A dataframe is similar to a table in a database, a SAS dataset, or an excel sheet.  A data frame has columns and rows.   A column in the dataframe must have the same datatype but different columns can have different data types.   This allows us to mix characters, numerics, logical vectors together into a single table.
+
+
+``` {r}
+
+df <- data.frame (numbers, characters)
+df
+str (df)
+
+```
+
+Note the use of the function **str()** which shows the structure of the data set.   It's very useful.
+
+A few other helpful functions:
+
+1. **nrow()** - shows the number of rows in a dataframe
+2. **ncol()** - shows the number of columns in a dataframe
+3. **summary()** - shows the variables in the dataframe and their distribution/contents
+
+In order to manipulate the dataframe you will want to be able to modify parts of it.  Either a column, a row or a specific cell.  
+
+### The $ operator
+
+Accessing a column can be done easily by using the **$** operator (e.g. dataframe$column_name).  
+
+```{r}
+df$numbers
+```
+
+You can also create a new column using the **$** operator.
+
+```{r}
+df$sq_numbers <- df$numbers^2
+str (df)
+```
+
+### The [] operator
+
+The 'square bracket' operator allows you to access any part of a vector or a dataframe.  It works like this: dataframe [row,column].   
+
+First, lets start by using the [] operator on a vector.
+
+```{r}
+#Gives the 2nd element of the vector
+numbers[2]
+
+```
+
+Now, let's use this on a dataframe.
+
+```{r}
+#Gives the value in the first column of the first row.
+df[1,1] 
+
+#Gives the first row
+df [1,]
+
+#Gives the first column
+df[,1]
+
+
+```
+
+
+What if we want several columns?  We can pass a range of column values instead of just a single value.  
+
+```{r}
+
+#This gives us the first two rows of the data
+df [1:2,]
+
+```
+
+We can also pass the names of the columns.  **colnames()** provides the name of the columns to us.  
+
+```{r}
+
+#This will pass only columns that match the names we provide 
+df [,c("numbers", "characters")]
+
+```

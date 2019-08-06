@@ -1,0 +1,140 @@
+---
+title: "Plotting in R Using ggplot2"
+subtitle: "R Tutorial II"
+output: 
+  pdf_document: 
+    theme: cosmo
+---
+***
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+``` {r include = FALSE}
+library (ggplot2)
+library (dplyr)
+data ("mpg")
+
+```
+
+##Why ggplot2?
+
+ggplot2 is the definitive graphing library in R. In almost all cases it's better than the default **plot()** function in R. 
+
+
+
+1. Graphs are built in layers that allow tons of flexibility
+2. Clean, easy to read graphs 'out of the box'
+3. Every possible graph form none to mankind
+4. ggplot2 graphs are objects that can be stored
+5. Themes are available to allow full customization
+
+##Cheatsheet
+
+There's a fantastic cheatsheet available for ggplot2 which you can find here.  [link](https://www.rstudio.com/wp-content/uploads/2015/03/ggplot2-cheatsheet.pdf)
+
+##Layers
+
+In ggplot2, graphs are built in layers.  
+
+**1. Map Data to Graphing Attributes** 
+
+You specify the dataframe you want to graph and use **aes()** to map the data onto aspects of your graph:
+
+* x, y on the axis
+* colour
+* alpha
+* linetype
+* size
+* weight
+
+```{r}
+p <- ggplot (mpg, aes (x= displ, y = hwy, colour = factor (year)))
+p
+```
+
+**2. Add Geom(s) to Your Graph**
+
+There are dozens but here are a few key ones:  
+* geom_histogram  
+* geom_bar  
+* geom_line  
+* geom_point - *a basic scatter point plot*  
+* geom_jitter - *a scatter plot with randomization to better show density*  
+* geom_boxplot - *a box and whisker plot*  
+* geom_density - *a great plot to show the distribution of data*  
+
+```{r}
+p+geom_point()
+```
+
+
+**3. Add Titles, Lables and Legends**
+
+xx 
+
+```{r}
+p+geom_point()+ggtitle("Highway Mileage and Displacement")+
+  ylab("Highway (MPG)")+
+  xlab ("Engine Displacement (L)")
+```
+
+
+**4. Apply Themes to Your Graphs**
+
+You can easily override the basic attributes of a graph using themes.  In fact, there's a whole package that provides even more themes.  [link](https://github.com/jrnold/ggthemes)
+
+* theme_fivethirtyeight - *based on the great fivethirtyeight.com site*
+* theme_economist - *based on the economist magazine*
+* theme_bw - *simple black and white*
+
+```{r}
+library (ggthemes)
+p+geom_point()+ggtitle("Highway Mileage and Displacement")+
+  ylab("Highway (MPG)")+
+  xlab ("Engine Displacement (L)")+
+  theme_economist()
+```
+
+**5. Apply More Geoms**
+
+You can simply add more geoms on top of the base layers - as many as you want.
+
+```{r}
+library (ggthemes)
+p+geom_point()+ggtitle("Highway Mileage and Displacement")+
+  ylab("Highway (MPG)")+
+  xlab ("Engine Displacement (L)")+
+  theme_economist()+
+  geom_smooth()
+```
+
+
+**6. Add even more geoms with other data sets**
+
+You can simply add more geoms on top of the base layers - as many as you want.
+
+```{r}
+library (dplyr)
+mpg_grouped <- mpg %>% 
+  group_by(manufacturer) %>% 
+  summarise (mean_hwy = mean(hwy))
+
+Top_Bot <- rbind(mpg_grouped %>% top_n(-1), mpg_grouped %>% top_n(1))
+
+p+geom_point(alpha = .25)+
+  ggtitle("Highway Mileage and Displacement")+
+  ylab("Highway (MPG)")+
+  xlab ("Engine Displacement (L)")+
+  theme_economist()+
+  geom_smooth()+
+  geom_hline(data =Top_Bot, aes (yintercept =mean_hwy))+
+  geom_label (aes (label = Top_Bot$manufacturer[1], y = Top_Bot$mean_hwy[1], x = 2), color = "black")+
+  geom_label (aes (label = Top_Bot$manufacturer[2], y = Top_Bot$mean_hwy[2], x = 2), color = "black")
+
+```
+
+##Links and Tips
+
+[link](http://zevross.com/blog/2014/08/04/beautiful-plotting-in-r-a-ggplot2-cheatsheet-3/)
