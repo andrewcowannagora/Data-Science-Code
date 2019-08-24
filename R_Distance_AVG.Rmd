@@ -1,0 +1,67 @@
+---
+author: "Andrew Cowan-Nagora"
+output: pdf_document
+---
+
+```{r}
+
+library(philentropy)
+
+```
+
+## Input Ratings
+
+```{r}
+steve <- c(7,6,4,3,4)
+yuri <- c(6,7,4,5,4)
+gary <- c(3,3,1,1,5)
+qurat <- c(2,1,3,7,4)
+brigid <- c(6,7,2,3,3)
+
+steve_yuri <- rbind(steve, yuri)
+steve_gary <- rbind(steve, gary)
+steve_qurat <- rbind(steve, qurat)
+steve_brigid <- rbind(steve, brigid)
+
+```
+
+## Get Cosine Distances to Steve
+
+```{r}
+
+cd_steve_yuri <- 1 - distance(steve_yuri, method = "cosine")
+cd_steve_gary <- 1 - distance(steve_gary, method = "cosine")
+cd_steve_qurat <- 1 - distance(steve_qurat, method = "cosine")
+cd_steve_brigid <- 1 - distance(steve_brigid, method = "cosine")
+
+rbind(cd_steve_yuri, cd_steve_gary, cd_steve_qurat, cd_steve_brigid)
+
+```
+
+## Get Weighted Average
+
+```{r}
+#	       Zin
+#Yuri	   7
+#Steve	 
+#Gary	   3
+#Qurat	 2
+#Brigid	 5
+
+Weighted_avg <- ((1-cd_steve_yuri)*7 + (1-cd_steve_gary)*3 + (1-cd_steve_qurat)*2 + (1-cd_steve_brigid)*5) / (4 - cd_steve_yuri - cd_steve_gary - cd_steve_qurat - cd_steve_brigid) 
+Weighted_avg <- unname(Weighted_avg)
+
+paste("Rounded Weighted Average") 
+(round(Weighted_avg))
+
+```
+
+
+
+
+
+
+
+
+
+
