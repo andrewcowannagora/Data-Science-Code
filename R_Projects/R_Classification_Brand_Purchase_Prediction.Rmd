@@ -1,0 +1,311 @@
+---
+author: "Andrew Cowan-Nagora"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r, results='hide'}
+library(tidyverse)
+library(ggthemes)
+library(caret)
+library(dummies)
+library(ggcorrplot)
+library(corrplot)
+library(cowplot)
+library(e1071)
+library(MLmetrics)
+library(ROCR)
+```
+
+```{r}
+#Load Data
+df <- read.csv("C:/Users/owner/Desktop/OJ.CSV")
+
+#drop row number, store7, store
+df <- df %>% select(-c(X, Store7, STORE)) #drop row number, store7, store
+
+colnames(df) <- make.names(colnames(df))
+
+#check for missing
+sum(is.na(df))
+
+str(df)
+
+```
+
+# Check Class Balance
+
+```{r}
+
+table(df$Purchase)
+
+df %>% 
+  group_by(Purchase) %>% 
+  summarise(Count = n())%>% 
+  mutate(percent = prop.table(Count)*100)%>%
+  ggplot(aes(reorder(Purchase, -percent), percent), fill = Purchase)+
+  geom_col(fill = c("#3E657D"))+
+  geom_text(aes(label = sprintf("%.2f%%", percent)), hjust = 0.01,vjust = -0.5, size =4)+ theme_economist()+theme(axis.title.x=element_blank())
+
+
+```
+
+# Check Distributions
+
+```{r}
+
+plot_grid(ggplot(df, aes(x=PriceCH))+ geom_histogram(fill="#3E657D") + theme_economist(),
+          ggplot(df, aes(x=PriceMM))+ geom_histogram(fill="#3E657D") + theme_economist(),
+          ggplot(df, aes(x=DiscCH))+ geom_histogram(fill="#3E657D") + theme_economist(),
+          ggplot(df, aes(x=DiscMM))+ geom_histogram(fill="#3E657D") + theme_economist(),
+          ggplot(df, aes(x=SpecialCH))+ geom_histogram(fill="#3E657D") + theme_economist(),
+          ggplot(df, aes(x=SpecialMM))+ geom_histogram(fill="#3E657D") + theme_economist(),
+          ggplot(df, aes(x=LoyalCH))+ geom_histogram(fill="#3E657D") + theme_economist(),
+          ggplot(df, aes(x=SalePriceMM))+ geom_histogram(fill="#3E657D") + theme_economist(),
+          ggplot(df, aes(x=SalePriceCH))+ geom_histogram(fill="#3E657D") + theme_economist(),
+          ggplot(df, aes(x=PriceDiff))+ geom_histogram(fill="#3E657D") + theme_economist(),
+          ggplot(df, aes(x=PctDiscMM))+ geom_histogram(fill="#3E657D") + theme_economist(),
+          ggplot(df, aes(x=PctDiscCH))+ geom_histogram(fill="#3E657D") + theme_economist(),
+          ggplot(df, aes(x=ListPriceDiff))+ geom_histogram(fill="#3E657D") + theme_economist()
+          )
+
+```
+
+# Near Zero Variance
+
+```{r}
+
+nzv <- nearZeroVar (df, saveMetrics = TRUE, freqCut = 500/1, uniqueCut = round(nrow (df)*.001))
+
+#Here's a printout by variable
+nzv
+
+#% of Data is unlikley to be useful
+sum(nzv$nzv)/ncol (df)
+df <- df [,!nzv$nzv]
+
+```
+
+
+# Check Correlations
+
+```{r}
+
+df_cor <- round(cor(df[,c("PriceCH", "PriceMM", "DiscCH", "DiscMM", "SpecialCH", "SpecialMM", "LoyalCH", "SalePriceMM", "SalePriceCH", "PriceDiff", "PctDiscMM", "PctDiscCH", "ListPriceDiff")]), 1)
+
+ggcorrplot(df_cor, hc.order = TRUE, type = "lower",
+   lab = TRUE, ggtheme = theme_economist, colors = c("#90353B", "white", "#82C0E9"))
+
+```
+
+# Remove highly correlated 
+
+```{r}
+
+cor_mat <- cor (df [,(colnames(df) %in% c("PriceCH", "PriceMM", "DiscCH", "DiscMM", "SpecialCH", "SpecialMM", "LoyalCH", "SalePriceMM", "SalePriceCH", "PriceDiff", "PctDiscMM", "PctDiscCH", "ListPriceDiff"))])
+summary(cor_mat[upper.tri(cor_mat)])
+high_corr <- findCorrelation(cor_mat, cutoff = .75)
+
+#remove high cor if desired
+#df_high_cor <- df [,-high_corr]
+
+```
+
+# Dummy Variables
+
+```{r}
+
+#convert to factors
+df$WeekofPurchase <- as.factor(df$WeekofPurchase)
+df$StoreID <- as.factor(df$StoreID)
+
+#add dummy variables for Week and Store ID
+df <- cbind(df, dummy(df$WeekofPurchase,sep='_Week_'), dummy(df$StoreID,sep='_Store_'))
+df <- df %>% select(-c(WeekofPurchase, StoreID))
+
+colnames(df) <- make.names(colnames(df))
+
+str(df)
+
+```
+
+# Partition Data
+
+```{r}
+set.seed(123)
+
+train.index <- createDataPartition(df$Purchase, p = .75, list = FALSE)
+
+train <- df[ train.index,]
+test  <- df[-train.index,]
+
+ctrl <- trainControl (method = "cv", number = 10, classProbs = TRUE)
+
+```
+
+# Build Models
+```{r}
+set.seed(123)
+
+mod_glm <- train (Purchase ~., data = train, method= "glm", family = "binomial",trControl = ctrl)
+mod_xgbtree <- train (Purchase ~., data = train, method= "xgbTree", trControl = ctrl)
+mod_tree <- train (Purchase ~., data = train, method= "rpart", trControl = ctrl)
+mod_blogit <- train (Purchase ~., data = train, method= "LogitBoost", trControl = ctrl)
+mod_rf <- train (Purchase ~., data = train, method= "rf", trControl = ctrl)
+mod_nb <- train (Purchase ~., data = train, method= "nb", trControl = ctrl)
+mod_kknn <- train (Purchase ~., data = train, method= "kknn", trControl = ctrl)
+mod_nnet <- train (Purchase ~., data = train, method= "nnet", trControl = ctrl)
+mod_svm <- train (Purchase ~., data = train, method= "svmLinearWeights2", trControl = ctrl)
+
+```
+
+
+# Assess Models
+
+```{r}
+
+print("Logistic Regression")
+confusionMatrix(predict(mod_glm, test), as.factor(test$Purchase), mode = "prec_recall")
+
+preds <- predict(mod_glm, test)
+
+
+
+
+print("Boosted Logistic Regression")
+confusionMatrix(predict(mod_blogit, test), test$Purchase, mode = "prec_recall")
+
+print("Decision Tree")
+confusionMatrix(predict(mod_tree, test), test$Purchase, mode = "prec_recall")
+
+print("Naive Bayes")
+confusionMatrix(predict(mod_nb, test), test$Purchase, mode = "prec_recall")
+
+print("KNN")
+confusionMatrix(predict(mod_kknn, test), test$Purchase, mode = "prec_recall")
+
+print("SVM")
+confusionMatrix(predict(mod_svm, test), test$Purchase, mode = "prec_recall")
+
+print("XG Boost")
+confusionMatrix(predict(mod_xgbtree, test), test$Purchase, mode = "prec_recall")
+
+print("Random Forest")
+confusionMatrix(predict(mod_rf, test), test$Purchase, mode = "prec_recall")
+
+print("Neural Network")
+confusionMatrix(predict(mod_nnet, test), test$Purchase, mode = "prec_recall")
+
+```
+
+# Tune Models
+
+```{r}
+
+ctrl_tune <- trainControl (method = "cv", number = 10, classProbs = TRUE, search = "random")
+#summaryFunction = twoClassSummary, summaryFunction = prSummary
+
+```
+
+# Run Tuned Models
+
+```{r, results='hide'}
+
+set.seed(123)
+
+mod_glm_tune <- train (Purchase ~., data = train, method= "glm", family = "binomial", tuneLength = 30, trControl = ctrl_tune)
+mod_xgbtree_tune <- train (Purchase ~., data = train, method= "xgbTree", tuneLength = 30,  trControl = ctrl_tune)
+mod_tree_tune <- train (Purchase ~., data = train, method= "rpart", tuneLength = 30,  trControl = ctrl_tune)
+mod_blogit_tune <- train (Purchase ~., data = train, method= "LogitBoost", tuneLength = 30,  trControl = ctrl_tune)
+mod_rf_tune <- train (Purchase ~., data = train, method= "rf", tuneLength = 30,  trControl = ctrl_tune)
+mod_nb_tune <- train (Purchase ~., data = train, method= "nb", tuneLength = 30,  trControl = ctrl_tune)
+mod_kknn_tune <- train (Purchase ~., data = train, method= "kknn", tuneLength = 30,  trControl = ctrl_tune)
+mod_nnet_tune <- train (Purchase ~., data = train, method= "nnet", tuneLength = 30,  trControl = ctrl_tune)
+mod_svm_tune <- train (Purchase ~., data = train, method= "svmLinearWeights2", tuneLength = 30,  trControl = ctrl_tune)
+
+
+```
+
+# View Tuned Models
+
+```{r}
+
+mod_glm_tune
+
+mod_blogit
+
+mod_tree_tune
+
+mod_nb_tune
+
+mod_kknn_tune
+
+mod_svm_tune
+
+mod_xgbtree_tune
+
+mod_rf_tune
+
+mod_nnet_tune
+
+```
+
+
+# Assess Tuned Models
+
+```{r}
+
+print("Tuned: Logistic Regression")
+confusionMatrix(predict(mod_glm_tune, test), test$Purchase, mode = "prec_recall")
+
+print("Tuned: Boosted Logistic Regression")
+confusionMatrix(predict(mod_blogit_tune, test), test$Purchase, mode = "prec_recall")
+
+print("Tuned: Decision Tree")
+confusionMatrix(predict(mod_tree_tune, test), test$Purchase, mode = "prec_recall")
+
+print("Tuned: Naive Bayes")
+confusionMatrix(predict(mod_nb_tune, test), test$Purchase, mode = "prec_recall")
+
+print("Tuned: KNN")
+confusionMatrix(predict(mod_kknn_tune, test), test$Purchase, mode = "prec_recall")
+
+print("Tuned: SVM")
+confusionMatrix(predict(mod_svm_tune, test), test$Purchase, mode = "prec_recall")
+
+print("Tuned: XG Boost")
+confusionMatrix(predict(mod_xgbtree_tune, test), test$Purchase, mode = "prec_recall")
+
+print("Tuned: Random Forest")
+confusionMatrix(predict(mod_rf_tune, test), test$Purchase, mode = "prec_recall")
+
+print("Tuned: Neural Network")
+confusionMatrix(predict(mod_nnet_tune, test), test$Purchase, mode = "prec_recall")
+
+```
+
+# Variable Importance of best model
+
+```{r}
+
+imp <- varImp(mod_blogit_tune,scale=FALSE)
+
+plot(imp, top = 20)
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+

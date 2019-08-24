@@ -1,0 +1,323 @@
+---
+author: "Andrew Cowan-Nagora"
+output: pdf_document
+---
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(extrafont)
+library(ggthemes)
+library(caret)
+library(cluster) # For preprocessing
+library(factoextra) # for elbow plots
+library(amap) # For distance metrics
+library(stylo) # For cosine distance
+library(dbscan)
+library(dendextend)
+library(gridExtra)
+library(tinytex)
+```
+
+
+## Load Data
+
+```{r}
+dat <- read.csv("C:/Users/owner/Desktop/jewelry_customers.csv")
+
+#Data Structure
+str(dat)
+
+#Look at Data
+dat %>%
+  select(Age, Income, Age, Savings, SpendingScore) %>%
+  head(n=15)
+
+```
+
+## Exploratory Plot
+
+```{r}
+#Plot Income vs Spending Score
+ggplot(dat, aes(x=Income, y=SpendingScore)) + 
+  geom_point(color="black", size=1.5) +
+  theme_tufte(base_family="Calibri") + 
+  theme(legend.position="none") + 
+  labs(x = "Income", y ="Spending Score") +
+  theme_economist() + scale_colour_economist() +
+  ggtitle("Income vs Spending Score") +
+  theme(legend.position = "right")
+
+```
+
+## Scale the Data
+
+```{r}
+#Scaling the data
+pre <- preProcess(dat[,c("Age", "Income", "Savings", "SpendingScore")], method="range")
+dat.scaled <- predict(pre, dat, method=c("range"))
+head(dat)
+head(dat.scaled)
+dat.scaled %>%
+  select(Age, Income, Savings, SpendingScore) %>%
+  head(n=15)
+```
+
+## K Means Clustering
+
+```{r}
+set.seed(123)
+
+# Test multiple K Clusters
+km3 <- kmeans(dat.scaled[,c("Age","Income","SpendingScore", "Savings")], centers=3, nstart=10)
+km4 <- kmeans(dat.scaled[,c("Age","Income","SpendingScore", "Savings")], centers=4, nstart=10)
+km5 <- kmeans(dat.scaled[,c("Age","Income","SpendingScore", "Savings")], centers=5, nstart=10)
+km9 <- kmeans(dat.scaled[,c("Age","Income","SpendingScore", "Savings")], centers=9, nstart=10)
+
+#Add clusters to data set
+dat.scaled$kmeans3 = km3$cluster
+dat.scaled$kmeans4 = km4$cluster
+dat.scaled$kmeans5 = km5$cluster
+dat.scaled$kmeans9 = km9$cluster
+
+#Test withness
+km3$tot.withinss
+km4$tot.withinss
+km5$tot.withinss
+km9$tot.withinss
+
+#Look as cluster sizes and centers
+cbind(km3$size, km3$centers)
+cbind(km4$size, km4$centers)
+cbind(km5$size, km5$centers)
+cbind(km9$size, km9$centers)
+
+
+## Plot Clusters
+
+#km3
+ggplot(dat.scaled, aes(x=Income, y=SpendingScore)) + 
+  geom_point(aes(color = factor(dat.scaled$kmeans3)),size=2) +
+  labs(x = "Income", y ="Spending Score") +
+  theme_economist() +
+  scale_colour_economist() +
+  ggtitle("Jewelry Customer Segmentation")+
+  labs(color = "Cluster") +
+  theme(legend.position = "right")
+
+#km4
+ggplot(dat.scaled, aes(x=Income, y=SpendingScore)) + 
+  geom_point(aes(color = factor(dat.scaled$kmeans4)),size=2) +
+  labs(x = "Income", y ="Spending Score") +
+  theme_economist() +
+  scale_colour_economist() +
+  ggtitle("Jewelry Customer Segmentation")+
+  labs(color = "Cluster") +
+  theme(legend.position = "right")
+
+#km5
+cbind(km5$size, km5$centers)
+
+ggplot(dat.scaled, aes(x=Income, y=SpendingScore)) + 
+  geom_point(aes(color = factor(dat.scaled$kmeans5)),size=2) +
+  labs(x = "Income", y ="Spending Score") +
+  theme_economist() +
+  scale_colour_economist() +
+  ggtitle("Jewelry Customer Segmentation")+
+  labs(color = "Cluster") +
+  theme(legend.position = "right")
+
+#km9
+ggplot(dat.scaled, aes(x=Income, y=SpendingScore)) + 
+  geom_point(aes(color = factor(dat.scaled$kmeans9)),size=2) +
+  labs(x = "Income", y ="Spending Score") +
+  theme_economist() +
+  scale_colour_economist() +
+  ggtitle("Jewelry Customer Segmentation")+
+  labs(color = "Cluster")+
+  theme(legend.position = "right")
+
+```
+
+
+## Optimal Number of Clusters Validation Methods
+
+```{r}
+set.seed(123)
+
+# silhouette method
+fviz_nbclust(dat.scaled[,c("Age", "Income", "SpendingScore", "Savings")], kmeans, method = "silhouette", k.max=15)
+
+# wss method
+fviz_nbclust(dat.scaled[,c("Age", "Income", "SpendingScore", "Savings")], kmeans, method = "wss", k.max=15)
+#ggsave(file="out/kmeans_wss.png", width=6, height=4)
+
+# gap statistic
+gap_stat <- clusGap(dat.scaled, FUN = kmeans, nstart = 25,
+                    K.max = 10, B = 50)
+
+fviz_gap_stat(gap_stat)
+
+
+fviz_cluster(km5, data = dat.scaled)
+
+
+```
+
+## F-Viz Clusters
+
+```{r}
+set.seed(123)
+
+p1 <- fviz_cluster(km3, geom = "point", data = dat.scaled) + ggtitle("k = 3") + scale_colour_economist()
+p2 <- fviz_cluster(km4, geom = "point",  data = dat.scaled) + ggtitle("k = 4") + scale_colour_economist()
+p3 <- fviz_cluster(km5, geom = "point",  data = dat.scaled) + ggtitle("k = 5") + scale_colour_economist()
+p4 <- fviz_cluster(km9, geom = "point",  data = dat.scaled) + ggtitle("k = 9") + scale_colour_economist()
+
+
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+
+#Best Plot
+
+fviz_cluster(km5, geom = "point", data = dat.scaled) + ggtitle("Optimal Clusters = 5") + theme_economist() + scale_colour_economist()
+
+```
+
+
+## Measure of Distance
+
+```{r}
+df = dat.scaled[,c("Income","SpendingScore")]
+dd_euc = dist(df, method = "euclidean")
+dd_man = dist(df, method = "manhattan")
+dd_min = dist(df, method = "minkowski")
+
+k <- 5
+
+set.seed(123)
+
+res = data.frame(method=character(), wss=numeric(), betweenss=numeric())
+
+clusters = kmeans(dd_euc, k, nstart=50)
+res = rbind(res, data.frame(method="euclidean", wss=clusters$tot.withinss, betweenness=clusters$betweenss))
+ggplot(df, aes(x=Income, y=SpendingScore)) + 
+  geom_point(aes(color = factor(clusters$cluster)),size=2) +
+  labs(x = "Income", y ="Spending Score") +
+  theme_economist() +
+  scale_colour_economist() +
+  ggtitle("Jewelry Customer Segmentation")+
+  labs(color = "Cluster")+
+  theme(legend.position = "right")
+
+clusters = kmeans(dd_man, k, nstart=50)
+res = rbind(res, data.frame(method="manhattan", wss=clusters$tot.withinss, betweenness=clusters$betweenss))
+ggplot(df, aes(x=Income, y=SpendingScore)) + 
+  geom_point(aes(color = factor(clusters$cluster)),size=2) +
+  labs(x = "Income", y ="Spending Score") +
+  theme_economist() +
+  scale_colour_economist() +
+  ggtitle("Jewelry Customer Segmentation")+
+  labs(color = "Cluster")+
+  theme(legend.position = "right")
+
+clusters = kmeans(dd_min, k, nstart=50)
+res = rbind(res, data.frame(method="minkowski", wss=clusters$tot.withinss, betweenness=clusters$betweenss))
+ggplot(df, aes(x=Income, y=SpendingScore)) + 
+  geom_point(aes(color = factor(clusters$cluster)),size=2) +
+  labs(x = "Income", y ="Spending Score") +
+  theme_economist() +
+  scale_colour_economist() +
+  ggtitle("Jewelry Customer Segmentation")+
+  labs(color = "Cluster") +
+  theme(legend.position = "right")
+
+res
+
+```
+
+## DBSCAN
+
+```{r}
+
+set.seed(123)
+
+kNNdistplot(dat.scaled[,c("Age", "Income", "SpendingScore", "Savings")], k = 3)
+
+clusters = dbscan(dat.scaled[,c("Age", "Income", "SpendingScore", "Savings")], 
+                  minPts = 3, 
+                  eps = .14)
+dat.scaled$dbscan = clusters$cluster
+
+
+ggplot(dat.scaled, aes(x=Income, y=SpendingScore)) + 
+  geom_point(aes(color = factor(dat.scaled$dbscan)),size=2) +
+  labs(x = "Income", y ="Spending Score") +
+  theme_economist() +
+  scale_colour_economist() +
+  ggtitle("Jewelry Customer Segmentation")+
+  labs(color = "Cluster") +
+  theme(legend.position = "right")
+
+```
+
+## Hierarchical
+
+```{r}
+set.seed(123)
+
+clusters = hclust(dist(dat.scaled[,c("Income", "SpendingScore")])) 
+hcd <- as.dendrogram(clusters)
+
+
+#5 Clusters
+dend5 <- hcd %>%
+          color_branches(k = 5) %>%
+          set("branches_lwd", c(2,1,2)) %>%
+          set("branches_lty", c(1,2,1))
+
+plot(dend5)
+
+
+#4 Clusters
+dend4 <- hcd %>%
+          color_branches(k = 4) %>%
+          set("branches_lwd", c(2,1,2)) %>%
+          set("branches_lty", c(1,2,1))
+
+plot(dend4)
+
+
+#8 Clusters
+dend8 <- hcd %>%
+          color_branches(k = 8) %>%
+          set("branches_lwd", c(2,1,2)) %>%
+          set("branches_lty", c(1,2,1))
+
+plot(dend8)
+
+
+
+#5 As ggplot dendogram
+ggd1 <- as.ggdend(dend5)
+ggplot(ggd1) + theme_economist() + scale_colour_economist() + ggtitle("Jewelry Customer Segmentation") +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) +
+  theme(axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank())
+                     
+                     
+
+```
+
+
+
+
+
+
+
+
+
+
