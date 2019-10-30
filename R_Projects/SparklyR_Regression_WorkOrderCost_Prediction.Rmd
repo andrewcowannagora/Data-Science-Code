@@ -1,0 +1,706 @@
+
+---
+title: "BGIS R v3"
+output:
+  html_document:
+    toc: true
+---
+
+
+```{r}
+%python
+#This is the access key for the datalake "mma865rock"
+
+spark.conf.set(
+  "fs.azure.account.key.mma865rock.dfs.core.windows.net",
+  "pI5MrxSSpj3oCpgA0WKwnPKGi07CRzeexq+hpgFGA6buwVkLLzPWa04X0AgkwT2QuM85v5BLx7qTo0Ow/EF8Ag==")
+```
+
+
+```{r}
+#install.packages("tidyverse")
+#install.packages("kableExtra")
+#install.packages("ggthemes")
+#install.packages("ggmosaic")
+#install.packages("forcats")
+#install.packages("FactoMineR")
+#install.packages("dbplot")
+
+library(sparklyr)
+library(SparkR)
+library(dplyr)
+library(tidyverse)
+#library(kableExtra)
+library(ggthemes)
+#library(dbplot)
+
+sc <- spark_connect(method = "databricks")
+```
+
+
+```{r}
+#Load in Data
+df_tbl = spark_read_csv(sc, path = "abfss://data@mma865rock.dfs.core.windows.net/Data_Cleaned_Fixed.csv", name="df", header = TRUE, stringsAsFactors = T)
+#src_tbls(sc)
+#df_tbl <- tbl(sc, "df")
+```
+
+
+```{r}
+#Remove problematic records
+
+df_tbl <- df_tbl %>%
+  filter(Building_ID != "quote #4177-16") %>%
+  filter(WorkOrder_Nbr != "ClientQ7481228") %>%
+  filter(WorkOrder_Nbr != "ClientQ7482319") %>%
+  filter(WorkOrder_Nbr != "ClientQ6800089") %>%
+  filter(WorkOrder_Nbr != "ClientQ2448308") %>%
+  filter(WorkOrder_Nbr != "ClientQ7352193") %>%
+  filter(WorkOrder_Nbr != "ClientQ5888780") %>%
+  filter(WorkOrder_Nbr != "ClientQ7707586") %>%
+  filter(WorkOrder_Nbr != "ClientQ3798983") %>%
+  filter(WorkOrder_Nbr != "ClientQ1903331") %>%
+  filter(WorkOrder_Nbr != "ClientQ2433288") %>%
+  filter(WorkOrder_Nbr != "ClientQ2216341") %>%
+  filter(WorkOrder_Nbr != "ClientQ7307774") %>%
+  filter(WorkOrder_Nbr != "ClientQ7099828") %>%
+  filter(WorkOrder_Nbr != "ClientQ4807077") %>%
+  filter(WorkOrder_Nbr != "ClientQ7997174") %>%
+  filter(WorkOrder_Nbr != "ClientQ7332307") %>%
+  filter(WorkOrder_Nbr != "ClientQ7320675") %>%
+  filter(WorkOrder_Nbr != "ClientQ7263479") %>%
+  filter(WorkOrder_Nbr != "ClientQ3941067") %>%
+  filter(WorkOrder_Nbr != "ClientQ2651713") %>%
+  filter(WorkOrder_Nbr != "ClientQ2651713") %>%
+  filter(WorkOrder_Nbr != "ClientQ6012059") %>%
+  filter(WorkOrder_Nbr != "ClientQ6882752") %>%
+  filter(WorkOrder_Nbr != "ClientQ6882752") %>%
+  filter(WorkOrder_Nbr != "ClientQ6882752") %>%
+  filter(WorkOrder_Nbr != "ClientQ7551956") %>%
+  filter(WorkOrder_Nbr != "ClientQ3066809") %>%
+  filter(WorkOrder_Nbr != "ClientQ6239551")
+  
+```
+
+
+```{r}
+#Select useful columns
+#Unused that may be useful later: Description_Document, Vendor_Key, LeaseInd2, TargetCompletion_Date, WorkOrder_Nbr, WorkOrder_Nbr,
+
+df_tbl_cleaned <- df_tbl %>%
+  select(WorkOrder_Nbr,
+         Building_ID,
+         City, 
+         Province, 
+         Region_Name,
+         Property_Usage, 
+         Description_Document,
+         ServiceType_Name,
+         Creation_Date,
+         ServiceProvider_Class, 
+         ServiceProvider_Type, 
+         WorkOrderSource_Cd, 
+         WorkOrderType_Desc1, 
+         WorkOrder_Priority_Desc,
+         Vendor_Key,
+         doc_lengths,
+         LeaseInd,
+         Estimated_Time_Days, 
+         Rentable_SQFT, 
+         Func_Burdened_Cost
+         )
+  
+```
+
+
+```{r}
+#Casting data types / extracting date elements / add word count / specific one-hot encoding
+
+df_tbl_cleaned <- df_tbl_cleaned %>%  
+  mutate(Rentable_SQFT = as.numeric(Rentable_SQFT)) %>%
+  mutate(Func_Burdened_Cost = as.numeric(Func_Burdened_Cost)) %>%
+  mutate(Estimated_Time_Days = as.numeric(Estimated_Time_Days)) %>%
+  mutate(Estimated_Time_Days = round(Estimated_Time_Days, 0)) %>%
+  mutate(c_year = year(Creation_Date)) %>%
+  mutate(c_month = month(Creation_Date)) %>%
+  mutate(c_day = day(Creation_Date)) %>%
+  mutate(c_hour = hour(Creation_Date)) %>%
+  mutate(c_weeknum = weekofyear(Creation_Date)) %>%
+  mutate(c_dayofweek = dayofweek (Creation_Date)) %>%
+  mutate(number_words=as.numeric(LENGTH(Description_Document) - LENGTH(REPLACE(Description_Document, ' ', '')) + 1))
+
+df_tbl_cleaned <- df_tbl_cleaned %>%  
+  mutate(Vendor_Key = as.character(Vendor_Key)) %>%
+  mutate(c_year = as.character(c_year)) %>%
+  mutate(c_month = as.character(c_month)) %>%
+  mutate(c_day = as.character(c_day)) %>%
+  mutate(c_hour = as.character(c_hour)) %>%
+  mutate(c_weeknum = as.character(c_weeknum)) %>%
+  mutate(c_dayofweek = as.character(c_dayofweek))
+
+df_tbl_cleaned <- df_tbl_cleaned %>%  
+  mutate(Vendor_Key = ifelse(Vendor_Key == "0", "LANDLORD", Vendor_Key)) %>%
+  mutate(Estimated_Time_Days = ifelse(Estimated_Time_Days < 0, 0, Estimated_Time_Days))
+  
+
+
+df_tbl_cleaned <- df_tbl_cleaned %>%  
+  mutate(Province_AB = ifelse(Province == "AB", 1, 0)) %>%
+  mutate(Province_BC = ifelse(Province == "BC", 1, 0)) %>%
+  mutate(Province_MB = ifelse(Province == "MB", 1, 0)) %>%
+  mutate(Province_ON = ifelse(Province == "ON", 1, 0)) %>%
+  mutate(Province_QC = ifelse(Province == "QC", 1, 0)) %>%
+  mutate(Province_SK = ifelse(Province == "SK", 1, 0)) %>%
+
+  mutate(City_TORONTO = ifelse(City == "TORONTO", 1, 0)) %>%
+  mutate(City_OTTAWA = ifelse(City == "OTTAWA", 1, 0)) %>%
+  mutate(City_MISSISSAUGA = ifelse(City == "MISSISSAUGA", 1, 0)) %>%
+  mutate(City_LONDON = ifelse(City == "LONDON", 1, 0)) %>%
+  mutate(City_WINDSOR = ifelse(City == "WINDSOR", 1, 0)) %>%
+  mutate(City_CALGARY = ifelse(City == "CALGARY", 1, 0)) %>%
+  mutate(City_THUNDER_BAY = ifelse(City == "THUNDER BAY", 1, 0)) %>%
+
+  mutate(Property_Usage_CORP = ifelse(Property_Usage == "CORP", 1, 0)) %>%
+  mutate(Property_Usage_RET_STAND_ALONE = ifelse(Property_Usage == "RET_STAND ALONE", 1, 0)) %>%
+  mutate(Property_Usage_RET_MIXED_USE = ifelse(Property_Usage == "RET_MIXED USE", 1, 0)) %>%
+
+  mutate(ServiceProvider_Type_TECH_OU = ifelse(ServiceProvider_Type == "TECH OU", 1, 0)) %>%
+  mutate(ServiceProvider_Type_LEASE = ifelse(ServiceProvider_Type == "LEASE", 1, 0)) %>%
+  mutate(ServiceProvider_Type_LANDLORD = ifelse(ServiceProvider_Type == "LANDLORD", 1, 0)) %>%
+  mutate(ServiceProvider_Type_BUILDING_MECHANICALE = ifelse(ServiceProvider_Type == "BUILDING MECHANICAL", 1, 0)) %>%
+  mutate(ServiceProvider_Type_EMPLOYEE_DISPATCH = ifelse(ServiceProvider_Type == "EMPLOYEE DISPATCH", 1, 0)) %>%
+  mutate(ServiceProvider_Type_FM = ifelse(ServiceProvider_Type == "FM", 1, 0)) %>%
+  mutate(ServiceProvider_Type_DOORSANDLOCKS = ifelse(ServiceProvider_Type == "DOORS AND LOCKS", 1, 0)) %>%
+  mutate(ServiceProvider_Type_PLUMBING = ifelse(ServiceProvider_Type == "PLUMBING", 1, 0)) %>%
+  mutate(ServiceProvider_Type_WINDOWSDOORS = ifelse(ServiceProvider_Type == "WINDOWS & DOORS", 1, 0)) %>%
+  mutate(ServiceProvider_Type_GROUNDSLANDSCAPING = ifelse(ServiceProvider_Type == "GROUNDS/LANDSCAPING", 1, 0)) %>%
+  mutate(ServiceProvider_Type_HVAC = ifelse(ServiceProvider_Type == "HVAC", 1, 0)) %>%
+  mutate(ServiceProvider_Type_INTERCOMPANY = ifelse(ServiceProvider_Type == "INTERCOMPANY", 1, 0)) %>%
+
+  mutate(WorkOrderType_ServiceRequest = ifelse(WorkOrderType_Desc1 == "Service Request", 1, 0)) %>%
+  mutate(WorkOrderType_ClientDirectedInitiatives = ifelse(WorkOrderType_Desc1 == "Client Directed Initiatives", 1, 0)) %>%
+  mutate(WorkOrderType_PreventativeMaintenancet = ifelse(WorkOrderType_Desc1 == "Preventative Maintenance", 1, 0)) %>%
+  mutate(WorkOrderType_CorrectiveMaintenance = ifelse(WorkOrderType_Desc1 == "Corrective Maintenance", 1, 0)) %>%
+  mutate(WorkOrderType_OperationalProactiveService = ifelse(WorkOrderType_Desc1 == "Operational Proactive Service", 1, 0)) %>%
+  mutate(WorkOrderType_TenantRequest = ifelse(WorkOrderType_Desc1 == "Tenant Request", 1, 0)) %>%
+  mutate(WorkOrderType_DispatchCenterQuotes = ifelse(WorkOrderType_Desc1 == "Dispatch Center Quotes", 1, 0)) %>%
+  mutate(WorkOrderType_CapitalWorks = ifelse(WorkOrderType_Desc1 == "Capital Works", 1, 0)) %>%
+  mutate(WorkOrderType_CapitalWorks = ifelse(WorkOrderType_Desc1 == "Capital Works", 1, 0)) %>%
+  mutate(WorkOrderType_BJCCTechServices = ifelse(WorkOrderType_Desc1 == "BJCC Tech Services", 1, 0)) %>%
+  mutate(WorkOrderType_Projects = ifelse(WorkOrderType_Desc1 == "Projects", 1, 0)) %>%
+
+  mutate(c_month_7 = ifelse(c_month == "7", 1, 0)) %>%
+  mutate(c_month_11 = ifelse(c_month == "11", 1, 0)) %>%
+  mutate(c_month_9 = ifelse(c_month == "9", 1, 0)) %>%
+  mutate(c_month_6 = ifelse(c_month == "6", 1, 0)) %>%
+  mutate(c_month_1 = ifelse(c_month == "1", 1, 0)) %>%
+  mutate(c_month_5 = ifelse(c_month == "5", 1, 0)) %>%
+  mutate(c_month_3 = ifelse(c_month == "3", 1, 0)) %>%
+  mutate(c_month_12 = ifelse(c_month == "12", 1, 0)) %>%
+  mutate(c_month_10 = ifelse(c_month == "10", 1, 0)) %>%
+
+  mutate(c_day_11 = ifelse(c_day == "11", 1, 0)) %>%
+  mutate(c_day_28 = ifelse(c_day == "28", 1, 0)) %>%
+  mutate(c_day_5 = ifelse(c_day == "5", 1, 0)) %>%
+  mutate(c_day_30 = ifelse(c_day == "30", 1, 0)) %>%
+  mutate(c_day_14 = ifelse(c_day == "14", 1, 0)) %>%
+  mutate(c_day_10 = ifelse(c_day == "10", 1, 0)) %>%
+  mutate(c_day_15 = ifelse(c_day == "15", 1, 0)) %>%
+  mutate(c_day_23 = ifelse(c_day == "23", 1, 0)) %>%
+  mutate(c_day_2 = ifelse(c_day == "2", 1, 0)) %>%
+  mutate(c_day_19 = ifelse(c_day == "19", 1, 0)) %>%
+  mutate(c_day_23 = ifelse(c_day == "23", 1, 0)) %>%
+  mutate(c_day_22 = ifelse(c_day == "22", 1, 0)) %>%
+  mutate(c_day_6 = ifelse(c_day == "6", 1, 0)) %>%
+
+  mutate(c_hour_10 = ifelse(c_hour == "10", 1, 0)) %>%
+  mutate(c_hour_8 = ifelse(c_hour == "8", 1, 0)) %>%
+  mutate(c_hour_12 = ifelse(c_hour == "12", 1, 0)) %>%
+  mutate(c_hour_0 = ifelse(c_hour == "0", 1, 0)) %>%
+  mutate(c_hour_15 = ifelse(c_hour == "15", 1, 0)) %>%
+  mutate(c_hour_18 = ifelse(c_hour == "18", 1, 0)) %>%
+  mutate(c_hour_7 = ifelse(c_hour == "7", 1, 0)) %>%
+  mutate(c_hour_1 = ifelse(c_hour == "1", 1, 0)) %>%
+  mutate(c_hour_9 = ifelse(c_hour == "9", 1, 0)) %>%
+  mutate(c_hour_22 = ifelse(c_hour == "2", 1, 0)) %>%
+
+  mutate(c_weeknum_51 = ifelse(c_weeknum == "51", 1, 0)) %>%
+  mutate(c_weeknum_46 = ifelse(c_weeknum == "46", 1, 0)) %>%
+  mutate(c_weeknum_44 = ifelse(c_weeknum == "44", 1, 0)) %>%
+  mutate(c_weeknum_43 = ifelse(c_weeknum == "43", 1, 0)) %>%
+  mutate(c_weeknum_38 = ifelse(c_weeknum == "38", 1, 0)) %>%
+  mutate(c_weeknum_34 = ifelse(c_weeknum == "34", 1, 0)) %>%
+  mutate(c_weeknum_30 = ifelse(c_weeknum == "30", 1, 0)) %>%
+  mutate(c_weeknum_3 = ifelse(c_weeknum == "3", 1, 0)) %>%
+  mutate(c_weeknum_29 = ifelse(c_weeknum == "29", 1, 0)) %>%
+  mutate(c_weeknum_21 = ifelse(c_weeknum == "21", 1, 0)) %>%
+  mutate(c_weeknum_20 = ifelse(c_weeknum == "20", 1, 0)) %>%
+  mutate(c_weeknum_14 = ifelse(c_weeknum == "14", 1, 0)) %>%
+  mutate(c_weeknum_13 = ifelse(c_weeknum == "13", 1, 0)) %>%
+  
+  mutate(c_dayofweek_4 = ifelse(c_dayofweek == "4", 1, 0)) %>%
+
+  mutate(BuildingID_Q0101 = ifelse(Building_ID == "Q0101", 1, 0)) %>%
+  mutate(BuildingID_Q0105 = ifelse(Building_ID == "Q0105", 1, 0)) %>%
+
+  ft_bucketizer(input_col = "Estimated_Time_Days", output_col = "Estimated_Time_Days_bucket", splits = c(0, 1, 9, 45, 125, 800)) %>%
+  ft_bucketizer(input_col = "Rentable_SQFT", output_col = "Rentable_SQFT_bucket", splits = c(0, 5000, 25000, 100000, 300000, 850000)) 
+
+ 
+```
+
+
+```{r}
+#One hot Encoding
+
+sdf <- df_tbl_cleaned %>%
+  
+  #ft_string_indexer(input_col = "Building_ID", output_col = "Building_ID_Index", handle_invalid = "keep") %>%
+  #ft_string_indexer(input_col = "City", output_col = "City_Index", handle_invalid = "keep") %>%
+  #ft_string_indexer(input_col = "Province", output_col = "Province_Index", handle_invalid = "keep") %>%
+  ft_string_indexer(input_col = "Region_Name", output_col = "Region_Name_Index", handle_invalid = "keep") %>%
+  #ft_string_indexer(input_col = "Property_Usage", output_col = "Property_Usage_Index", handle_invalid = "keep") %>%
+  ft_string_indexer(input_col = "ServiceType_Name", output_col = "ServiceType_Name_Index", handle_invalid = "keep") %>%
+  ft_string_indexer(input_col = "ServiceProvider_Class", output_col = "ServiceProvider_Class_Index", handle_invalid = "keep") %>%
+  #ft_string_indexer(input_col = "ServiceProvider_Type", output_col = "ServiceProvider_Type_Index", handle_invalid = "keep") %>%
+  #ft_string_indexer(input_col = "WorkOrderSource_Cd", output_col = "WorkOrderSource_Cd_Index", handle_invalid = "keep") %>%
+  #ft_string_indexer(input_col = "WorkOrderType_Desc1", output_col = "WorkOrderType_Desc1_Index", handle_invalid = "keep") %>%
+  ft_string_indexer(input_col = "WorkOrder_Priority_Desc", output_col = "WorkOrder_Priority_Desc_Index", handle_invalid = "keep") %>%
+  #ft_string_indexer(input_col = "Vendor_Key", output_col = "Vendor_Key_Index", handle_invalid = "keep") %>%
+  ft_string_indexer(input_col = "c_year", output_col = "c_year_Index", handle_invalid = "keep") %>%
+  #ft_string_indexer(input_col = "c_month", output_col = "c_month_Index", handle_invalid = "keep") %>%
+  #ft_string_indexer(input_col = "c_day", output_col = "c_day_Index", handle_invalid = "keep") %>%
+  #ft_string_indexer(input_col = "c_hour", output_col = "c_hour_Index", handle_invalid = "keep") %>%
+  #ft_string_indexer(input_col = "c_weeknum", output_col = "c_weeknum_Index", handle_invalid = "keep") %>%
+  #ft_string_indexer(input_col = "c_dayofweek", output_col = "c_dayofweek_Index", handle_invalid = "keep") %>%
+
+  #ft_one_hot_encoder(input_col = "Building_ID_Index", output_col = "Building_ID_", drop_last = TRUE) %>%
+  #ft_one_hot_encoder("City_Index", "City_", drop_last = TRUE) %>%
+  #ft_one_hot_encoder("Province_Index", "Province_", drop_last = TRUE) %>%
+  ft_one_hot_encoder("Region_Name_Index", "Region_Name_", drop_last = TRUE) %>%
+  #ft_one_hot_encoder("Property_Usage_Index", "Property_Usage_", drop_last = TRUE) %>%
+  ft_one_hot_encoder("ServiceType_Name_Index", "ServiceType_Name_", drop_last = TRUE) %>%
+  ft_one_hot_encoder("ServiceProvider_Class_Index", "ServiceProvider_Class_", drop_last = TRUE) %>%
+  #ft_one_hot_encoder("ServiceProvider_Type_Index", "ServiceProvider_Type_", drop_last = TRUE) %>%
+  #ft_one_hot_encoder("WorkOrderSource_Cd_Index", "WorkOrderSource_Cd_", drop_last = TRUE) %>%
+  #ft_one_hot_encoder("WorkOrderType_Desc1_Index", "WorkOrderType_Desc1_", drop_last = TRUE) %>%
+  ft_one_hot_encoder("WorkOrder_Priority_Desc_Index", "WorkOrder_Priority_Desc_", drop_last = TRUE) %>%
+  #ft_one_hot_encoder("Vendor_Key_Index", "Vendor_Key_", drop_last = TRUE) %>%
+  ft_one_hot_encoder("c_year_Index", "c_year_", drop_last = TRUE) %>%
+  #ft_one_hot_encoder("c_month_Index", "c_month_", drop_last = TRUE) %>%
+  #ft_one_hot_encoder("c_day_Index", "c_day_", drop_last = TRUE) %>%
+  #ft_one_hot_encoder("c_hour_Index", "c_hour_", drop_last = TRUE) %>%
+  #ft_one_hot_encoder("c_weeknum_Index", "c_weeknum_", drop_last = TRUE) %>%
+  #ft_one_hot_encoder("c_dayofweek_Index", "c_dayofweek_", drop_last = TRUE)
+
+  ft_one_hot_encoder("Rentable_SQFT_bucket", "Rentable_SQFT_bucket_", drop_last = TRUE) %>%
+  ft_one_hot_encoder("Estimated_Time_Days_bucket", "Estimated_Time_Days_bucket_", drop_last = TRUE) 
+```
+
+
+```{r}
+#text mining
+#extract text
+
+text <- df_tbl_cleaned %>%
+select(Description_Document) %>%
+mutate(Description_Document = regexp_replace(Description_Document, "[_\"\'():;,.!?\\-]", " "))
+```
+
+
+```{r}
+#Transform text to vector
+
+stop_words <- ml_default_stop_words(sc) %>%
+  c("please", "thank", "name", "sat", "sun", "pour", "merci", "porte", "dans", "2016", "2014", "2017")
+
+features <- text %>%
+  ft_regex_tokenizer("Description_Document", "tokens", min_token_length = 4) %>%
+  ft_stop_words_remover(input_col = "tokens", output_col = "wo_stop_words", stop_words = stop_words) %>%
+  #ft_ngram(input_col = "wo_stop_words", output_col = "ngram", n = 2) %>%
+  ft_count_vectorizer("wo_stop_words", "features", min_df = 50, min_tf = 1) #min_df = 3
+```
+
+
+```{r}
+#Vocab
+
+vec_model <- ml_pipeline( ft_regex_tokenizer(sc, "Description_Document", "tokens", min_token_length = 4), 
+                         ft_stop_words_remover(sc, input_col = "tokens", output_col = "wo_stop_words", stop_words = stop_words),
+                         #ft_ngram(sc, input_col = "wo_stop_words", output_col = "ngram", n = 2),
+                         ft_count_vectorizer(sc, "wo_stop_words", "features", min_df = 50, min_tf = 1)) %>%
+                         ml_fit(text)
+
+vocab_key <- ml_vocabulary(ml_stage(vec_model, 'count_vectorizer')) %>% data.frame() %>%
+  rownames_to_column('termIndices') %>%
+  rename('word' = '.') %>%
+  mutate(termIndices = as.integer(termIndices), termIndices = termIndices - 1)
+```
+
+
+```{r}
+set.seed(123)
+lda_model <-  ml_lda(features, k = 25, max_iter = 100)#, learning_offset = 1, learning_decay = .5, doc_concentration = .0005, optimize_doc_concentration = TRUE)
+```
+
+
+```{r}
+topic_descriptions <- ml_describe_topics(lda_model, max_terms_per_topic = 5) %>%
+  collect() %>%
+  unnest(termIndices, termWeights) %>%
+  mutate(topic = topic + 1)
+
+topic_descriptions$termIndices <- unlist(topic_descriptions$termIndices)
+
+topic_descriptions <- topic_descriptions %>% left_join(vocab_key, 'termIndices')
+
+topic_descriptions %>% display
+```
+
+
+```{r}
+#similarity matrix
+
+do_topic_temp <- ml_transform(lda_model, features) %>%
+  select(topicDistribution) %>%
+  collect()
+
+
+lda_features <- do.call(rbind, do_topic_temp$topicDistribution) 
+colnames(lda_features) <- paste('topic', 1:25)
+
+
+lda_long <- lda_features %>%
+  data.frame() %>%
+  gather(topic, value) 
+
+
+lda_long$WO_index <- 1:nrow(do_topic_temp)
+
+lda_long %>% 
+  filter(value >= .10) %>%
+  group_by(topic) %>%
+  summarise(Records = n()) %>%
+  arrange(desc(Records)) %>%
+  head(50) %>%
+  ggplot() + geom_bar(aes(x = topic, y = Records), stat = 'identity') +
+  labs(title = 'Topic Frequency') +
+  coord_flip ()+
+  theme_economist_white(gray_bg = FALSE) +
+  scale_fill_economist() + 
+  scale_colour_economist()
+```
+
+
+```{r}
+topics <- ml_transform(lda_model, features) %>%
+  select(topicDistribution, features) %>%
+  sdf_separate_column("topicDistribution", paste0("T", 1:25)) %>%
+  select(-topicDistribution)
+  #%>% mutate(T1 = round(T1, 2))
+
+sdf <- sdf_bind_cols(sdf, topics)
+```
+
+
+```{r}
+# Select final columns for algorithims
+
+sdf2 <- sdf %>%
+  select(Func_Burdened_Cost,
+         LeaseInd,
+         #Estimated_Time_Days,
+         Estimated_Time_Days_bucket_,
+         Rentable_SQFT,
+         #Rentable_SQFT_bucket_,
+         number_words,
+         T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15,
+         T16, T17, T18, T19, T20, T21, T22, T23, T24, T25,
+         #T26, T27, T28, T29, T30, T31, T32, T33, T34, T35,
+         #Building_ID_,
+         #City_,
+         #Province_,
+         Region_Name_,
+         #Property_Usage_,
+         ServiceType_Name_,
+       ServiceProvider_Class_,
+         #ServiceProvider_Type_,
+         #WorkOrderSource_Cd_,
+         #WorkOrderType_Desc1_,
+         WorkOrder_Priority_Desc_,
+         #Vendor_Key_,
+       c_year_,
+       #c_month_,
+       #c_day_,
+       #c_hour_,
+         #c_weeknum_,
+         #c_dayofweek_,
+         #BuildingID_Q0101,
+         #BuildingID_Q0105,
+       Province_AB,
+       Province_BC,
+       Province_ON,
+       City_TORONTO,
+       City_LONDON,
+       City_WINDSOR,
+       City_THUNDER_BAY,
+     #ServiceProvider_Type_TECH_OU,
+     #ServiceProvider_Type_LEASE,
+     #ServiceProvider_Type_LANDLORD,
+     #ServiceProvider_Type_BUILDING_MECHANICALE,
+     #ServiceProvider_Type_EMPLOYEE_DISPATCH,
+     #ServiceProvider_Type_FM,
+     #ServiceProvider_Type_PLUMBING,
+     #ServiceProvider_Type_WINDOWSDOORS,
+     #ServiceProvider_Type_HVAC,
+       WorkOrderType_ServiceRequest,
+       WorkOrderType_ClientDirectedInitiatives,
+       #WorkOrderType_PreventativeMaintenancet,
+       WorkOrderType_CorrectiveMaintenance,
+       WorkOrderType_OperationalProactiveService,
+       WorkOrderType_TenantRequest,
+       #WorkOrderType_CapitalWorks,
+     c_month_9,
+     c_month_3,
+     c_month_12,
+     c_month_6,
+     c_day_11,
+     c_day_5,
+     c_day_30,
+     c_day_15,
+     c_day_6,
+     c_hour_0,
+     c_hour_18,
+     #c_weeknum_38,
+     #c_weeknum_34,
+     #c_weeknum_30,
+     #c_weeknum_14
+         ) %>%  
+  filter(Func_Burdened_Cost >= 50) %>%
+  filter(Func_Burdened_Cost <= 1800)
+  
+```
+
+
+```{r}
+#Test / Train Partition
+
+partitions <- sdf2 %>%
+  sdf_partition(training = 0.80, test = 0.20, seed = 2019)
+
+sdf_training <- partitions$training
+sdf_test <- partitions$test
+
+#Formula
+ml_formula <- formula(Func_Burdened_Cost ~ .)
+```
+
+
+```{r}
+#Sparklyr Models
+
+ml_lr <- ml_linear_regression(sdf_training, ml_formula)
+#ml_lasso <- ml_linear_regression(sdf_training, ml_formula, elastic_net_param = 1, reg_param = 0.001)
+#ml_ridge <- ml_linear_regression(sdf_training, ml_formula, elastic_net_param = 0, reg_param = 0.001) 
+#ml_elas <- ml_linear_regression(sdf_training, ml_formula,  elastic_net_param = 0.5, reg_param = 0.001)
+ml_glm <- ml_generalized_linear_regression(sdf_training, ml_formula)
+ml_dt <- ml_decision_tree_regressor(sdf_training, ml_formula)
+#ml_rf <- ml_random_forest(sdf_training, ml_formula, num_trees = 30) #
+ml_rfr <- ml_random_forest_regressor(sdf_training, ml_formula, num_trees = 30) #
+ml_gbtr <- ml_gbt_regressor(sdf_training, ml_formula, max_depth = 8) #
+#ml_gbt <- ml_gradient_boosted_trees(sdf_training, ml_formula, max_depth = 8) # 
+
+#Fit testing data
+
+pred1 <- ml_predict(ml_lr, sdf_test)
+#pred2 <- ml_predict(ml_lasso, sdf_test)
+#pred3 <- ml_predict(ml_ridge, sdf_test)
+#pred4 <- ml_predict(ml_elas, sdf_test)
+pred5 <- ml_predict(ml_glm, sdf_test)
+pred6 <- ml_predict(ml_dt, sdf_test)
+#pred7 <- ml_predict(ml_rf, sdf_test)
+pred8 <- ml_predict(ml_rfr, sdf_test)
+pred9 <- ml_predict(ml_gbtr, sdf_test)
+#pred10 <- ml_predict(ml_gbt, sdf_test)
+```
+
+
+```{r}
+#Model Evaluation "rmse","mse" "r2", "mae"
+
+lr <- ml_regression_evaluator(pred1, label_col = "Func_Burdened_Cost", metric_name = "rmse")
+#lasso <- ml_regression_evaluator(pred2, label_col = "Func_Burdened_Cost", metric_name = "rmse")
+#ridge <- ml_regression_evaluator(pred3, label_col = "Func_Burdened_Cost", metric_name = "rmse")
+#elas <- ml_regression_evaluator(pred4, label_col = "Func_Burdened_Cost", metric_name = "rmse")
+glm <- ml_regression_evaluator(pred5, label_col = "Func_Burdened_Cost", metric_name = "rmse")
+dt <- ml_regression_evaluator(pred6, label_col = "Func_Burdened_Cost", metric_name = "rmse")
+#rf <- ml_regression_evaluator(pred7, label_col = "Func_Burdened_Cost", metric_name = "rmse")
+rfr <- ml_regression_evaluator(pred8, label_col = "Func_Burdened_Cost", metric_name = "rmse")
+gbtr <- ml_regression_evaluator(pred9, label_col = "Func_Burdened_Cost", metric_name = "rmse")
+#gbt <- ml_regression_evaluator(pred10, label_col = "Func_Burdened_Cost", metric_name = "rmse")
+
+rbind(lr, glm, dt, rfr, gbtr)
+```
+
+
+```{r}
+#Model Evaluation "rmse","mse" "r2", "mae"
+
+lr <- ml_regression_evaluator(pred1, label_col = "Func_Burdened_Cost", metric_name = "mse")
+#lasso <- ml_regression_evaluator(pred2, label_col = "Func_Burdened_Cost", metric_name = "mse")
+#ridge <- ml_regression_evaluator(pred3, label_col = "Func_Burdened_Cost", metric_name = "mse")
+#elas <- ml_regression_evaluator(pred4, label_col = "Func_Burdened_Cost", metric_name = "mse")
+glm <- ml_regression_evaluator(pred5, label_col = "Func_Burdened_Cost", metric_name = "mse")
+dt <- ml_regression_evaluator(pred6, label_col = "Func_Burdened_Cost", metric_name = "mse")
+#rf <- ml_regression_evaluator(pred7, label_col = "Func_Burdened_Cost", metric_name = "mse")
+rfr <- ml_regression_evaluator(pred8, label_col = "Func_Burdened_Cost", metric_name = "mse")
+gbtr <- ml_regression_evaluator(pred9, label_col = "Func_Burdened_Cost", metric_name = "mse")
+#gbt <- ml_regression_evaluator(pred10, label_col = "Func_Burdened_Cost", metric_name = "mse")
+
+rbind(lr, glm, dt, rfr, gbtr)
+```
+
+
+```{r}
+#Model Evaluation "rmse","mse" "r2", "mae"
+
+lr <- ml_regression_evaluator(pred1, label_col = "Func_Burdened_Cost", metric_name = "r2")
+#lasso <- ml_regression_evaluator(pred2, label_col = "Func_Burdened_Cost", metric_name = "r2")
+#ridge <- ml_regression_evaluator(pred3, label_col = "Func_Burdened_Cost", metric_name = "r2")
+#elas <- ml_regression_evaluator(pred4, label_col = "Func_Burdened_Cost", metric_name = "r2")
+glm <- ml_regression_evaluator(pred5, label_col = "Func_Burdened_Cost", metric_name = "r2")
+dt <- ml_regression_evaluator(pred6, label_col = "Func_Burdened_Cost", metric_name = "r2")
+#rf <- ml_regression_evaluator(pred7, label_col = "Func_Burdened_Cost", metric_name = "r2")
+rfr <- ml_regression_evaluator(pred8, label_col = "Func_Burdened_Cost", metric_name = "r2")
+gbtr <- ml_regression_evaluator(pred9, label_col = "Func_Burdened_Cost", metric_name = "r2")
+#gbt <- ml_regression_evaluator(pred10, label_col = "Func_Burdened_Cost", metric_name = "r2")
+
+rbind(lr, glm, dt, rfr, gbtr)
+```
+
+
+```{r}
+#Model Evaluation "rmse","mse" "r2", "mae"
+
+lr <- ml_regression_evaluator(pred1, label_col = "Func_Burdened_Cost", metric_name = "mae")
+#lasso <- ml_regression_evaluator(pred2, label_col = "Func_Burdened_Cost", metric_name = "mae")
+#ridge <- ml_regression_evaluator(pred3, label_col = "Func_Burdened_Cost", metric_name = "mae")
+#elas <- ml_regression_evaluator(pred4, label_col = "Func_Burdened_Cost", metric_name = "mae")
+glm <- ml_regression_evaluator(pred5, label_col = "Func_Burdened_Cost", metric_name = "mae")
+dt <- ml_regression_evaluator(pred6, label_col = "Func_Burdened_Cost", metric_name = "mae")
+#rf <- ml_regression_evaluator(pred7, label_col = "Func_Burdened_Cost", metric_name = "mae")
+rfr <- ml_regression_evaluator(pred8, label_col = "Func_Burdened_Cost", metric_name = "mae")
+gbtr <- ml_regression_evaluator(pred9, label_col = "Func_Burdened_Cost", metric_name = "mae")
+#gbt <- ml_regression_evaluator(pred10, label_col = "Func_Burdened_Cost", metric_name = "mae")
+
+rbind(lr, glm, dt, rfr, gbtr)
+```
+
+
+```{r}
+ml_models <- list(
+  "GBTR" = ml_gbtr,
+  "Random Forest R" = ml_rfr,
+  "LR" = ml_lr,
+  "GLM" = ml_glm,
+  "Decision Trees" = ml_dt
+  #"Random Forest" = ml_rf,
+  #"GBT" = ml_gbt,
+)
+
+# Initialize results
+feature_importance <- tibble()
+
+# Calculate feature importance
+for(i in c("GBTR", "Random Forest R", "Decision Trees")){
+  feature_importance <- ml_tree_feature_importance(ml_models[[i]]) %>%
+    mutate(Model = i) %>%
+    rbind(feature_importance, .)
+}
+
+# Plot results
+feature_importance %>%
+  #ggplot(aes(reorder(feature, importance), importance, fill = "Model")) + 
+  ggplot(aes(reorder(feature, importance), importance, fill = "82C0E9")) + 
+  facet_wrap(~Model, ncol=3) +
+  geom_bar(stat = "identity") + 
+  coord_flip() +
+  labs(title = "Feature importance",
+       x = NULL) +
+  theme_economist_white(base_size = 7, gray_bg = FALSE) +
+  scale_fill_economist() + 
+  scale_colour_economist()
+  #theme(legend.position = "none", text = element_text(size=8))
+
+```
+
+
+```{r}
+#tbl_df
+
+display(collect(ml_tree_feature_importance(ml_gbtr)))
+
+
+```
+
+
+```{r}
+pipeline <- ml_pipeline(sc) %>%
+
+ft_vector_assembler(input_cols = c(
+         "LeaseInd",
+         "Estimated_Time_Days_bucket_",
+         "Rentable_SQFT_bucket_",
+         "number_words",
+         "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10", "T11", "T12", "T13", "T14", "T15",
+         "T16", "T17", "T18", "T19", "T20", "T21", "T22", "T23", "T24", "T25",
+         "Region_Name_",
+         "ServiceType_Name_",
+       "ServiceProvider_Class_",
+         "WorkOrder_Priority_Desc_",
+       "c_year_",
+       "Province_AB",
+       "Province_BC",
+       "Province_ON",
+       "City_TORONTO",
+       "City_LONDON",
+       "City_WINDSOR",
+       "City_THUNDER_BAY",
+       "WorkOrderType_ServiceRequest",
+       "WorkOrderType_ClientDirectedInitiatives",
+       "WorkOrderType_CorrectiveMaintenance",
+       "WorkOrderType_OperationalProactiveService",
+       "WorkOrderType_TenantRequest",
+     "c_month_9",
+     "c_month_3",
+     "c_month_12",
+     "c_month_6",
+     "c_day_11",
+     "c_day_5",
+     "c_day_30",
+     "c_day_15",
+     "c_day_6",
+     "c_hour_0",
+     "c_hour_18"
+      ),                               
+  output_col = "features") %>%
+  ft_standard_scaler(input_col = "features", output_col = "features_scaled", with_mean = TRUE) %>%
+  ml_linear_regression(features_col = "features_scaled",label_col = "Func_Burdened_Cost")
+```
+
+
+```{r}
+cv <- ml_cross_validator(sc,
+  estimator = pipeline,
+  estimator_param_maps = list(
+    standard_scaler = list(with_mean = c(TRUE, FALSE)),
+    linear_regression = list(elastic_net_param = c(0, 0.25, 0.75, 1), reg_param = c(1,0.1,0.05,0.01,seq(0.009,0.001,-0.001),0.00075,0.0005,0.0001))       #seq(0.009,0.001,-0.001),                                       
+    ),evaluator = ml_regression_evaluator(sc, label_col = "Func_Burdened_Cost", metric_name = "rmse"), num_folds = 4)
+```
+
+
+```{r}
+cv_model <- ml_fit(cv, sdf2)
+ml_validation_metrics(cv_model)
+```
+
