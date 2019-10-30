@@ -1,0 +1,569 @@
+---
+title: "Text Analysis"
+output:
+  pdf_document:
+    highlight: pygments
+    number_sections: yes
+    toc: no
+    toc_depth: '2'
+---
+
+
+```{r}
+library(tidytext)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(tm)
+library(data.table)
+library(directlabels)
+library(wordcloud)
+library(SnowballC)
+library(RColorBrewer)
+```
+
+# Amazon Reviews
+
+## Read in the data
+
+```{r}
+df = read_csv("data/reviews_Grocery_and_Gourmet_Food_5_50000.csv")
+
+# Take sample?
+take_sample = TRUE
+if (take_sample) {
+  df = df %>%
+    sample_frac(size = 0.1, replace=FALSE)
+}
+
+dim(df)
+head(df)
+str(df)
+
+df[4,]$reviewText
+
+df %>%
+  filter(reviewID==24327)
+```
+
+
+
+
+# Create tidy format
+
+```{r}
+tidy <- df %>% 
+  unnest_tokens(word, reviewText)
+
+# Number of words
+dim(tidy)
+
+# Number of unique words
+tidy %>%
+  select(word) %>%
+  distinct(word) %>%
+  summarize(total = n())
+```
+
+
+# Uni-gram frequency analysis
+
+```{r}
+
+iwidth = 7
+iheight = 7
+
+theme_set(theme_gray(base_size = 18))
+
+unigram_counts = tidy %>%
+  anti_join(stop_words, by=c("word"="word")) %>%
+  count(word, sort=TRUE)
+
+head(unigram_counts, n=100)
+
+unigram_counts %>%
+  top_n(20) %>%
+  ggplot(aes(reorder(word, n), n)) +
+  geom_col() +
+  labs(x = NULL, y = "n") +
+  coord_flip()
+
+
+ggsave(file="out/amazon_food_1.pdf", width=iwidth, height=iheight)
+```
+
+# Uni-gram frequency analysis, over time
+
+```{r}
+
+iwidth = 9
+iheight = 5
+
+theme_set(theme_gray(base_size = 18))
+
+tidy %>%
+  anti_join(stop_words, by=c("word"="word")) %>%
+  filter(word %in% c("coffee", "tea", "chocolate", "milk", "cheese", "pasta")) %>%
+  mutate(dt = as.POSIXct(unixReviewTime, origin="1970-01-01")) %>%
+  mutate(month = format(dt, "%m"), year = format(dt, "%Y")) %>%
+  filter(year > 2006) %>%
+  filter(year < 2014) %>%
+  count(word, year, sort=TRUE) %>%
+  ggplot(aes(year, n, group=word, color=word)) +
+  geom_line(aes(color=word)) +
+  labs(x = "year", y = "n") + 
+  scale_colour_discrete(guide = 'none')  +    
+  expand_limits(x=8) +
+  geom_dl(aes(label = word), method = list(dl.trans(x = x + .2), "last.points")) 
+
+ggsave(file="out/amazon_food_time.pdf", width=iwidth, height=iheight)
+```
+
+
+# Word frequency density plot
+
+```{r}
+tmp = tidy %>%
+  count(word, sort=TRUE)
+
+head(tmp)
+dim(tmp)
+
+
+iwidth = 9
+iheight = 5
+
+theme_set(theme_gray(base_size = 18))
+
+tmp %>%
+  filter(n > 1) %>%
+  ggplot(aes(reorder(word, -n), n)) +
+  geom_col() + 
+  theme(axis.text.x = element_blank(), axis.ticks = element_blank()) + 
+  labs (x = "rank", y = "count") +
+  scale_y_log10()
+
+ggsave(file="out/amazon_food_hist.pdf", width=iwidth, height=iheight)
+
+rm(tmp)
+```
+
+
+# Word frequency for a certain target (i.e., rating).
+```{r}
+
+iwidth = 7
+iheight = 7
+
+theme_set(theme_gray(base_size = 18))
+
+tidy %>%
+  filter(overall >= 5) %>%
+  anti_join(stop_words, by=c("word"="word")) %>%
+  count(word, sort=TRUE) %>%
+  top_n(20) %>%
+  ggplot(aes(reorder(word, n), n)) +
+  geom_col() +
+  labs(x = NULL, y = "n") +
+  coord_flip()
+
+
+ggsave(file="out/amazon_good.pdf", width=iwidth, height=iheight)
+```
+
+
+```{r}
+
+tidy %>%
+  filter(overall <= 1) %>%
+  anti_join(stop_words, by=c("word"="word")) %>%
+  count(word, sort=TRUE) %>%
+  top_n(20) %>%
+  ggplot(aes(reorder(word, n), n)) +
+  geom_col() +
+  labs(x = NULL, y = "n") +
+  coord_flip()
+
+
+ggsave(file="out/amazon_bad.pdf", width=iwidth, height=iheight)
+```
+
+
+# Log ratios
+
+```{r}
+tmp = tidy %>%
+  mutate(overall_str = ifelse(overall >= 4, "positive", "negative"))
+
+status_words_count = tmp %>% group_by(overall_str, word) %>%
+  summarize(count=n()) %>%
+  arrange(desc(count))
+
+head(status_words_count)
+
+log_ratios = status_words_count %>% 
+  spread (overall_str, count) %>%
+  mutate(negative = ifelse(is.na(negative), 0, negative)) %>%
+  mutate(positive = ifelse(is.na(positive), 0, positive)) %>%
+  mutate(total=negative+positive) %>%
+  mutate(log_ratio = log2((positive+1)/(negative+1))) 
+
+log_ratios %>%
+  filter(total > 50) %>%
+  filter(log_ratio > 0) %>%
+  arrange(desc(log_ratio)) %>%
+  top_n(15, abs(log_ratio))
+  
+log_ratios %>%
+  filter(total > 50) %>%
+  filter(log_ratio < 0.5) %>%
+  arrange((log_ratio)) %>%
+  top_n(15, abs(log_ratio))
+
+
+iwidth = 9
+iheight = 7
+
+theme_set(theme_gray(base_size = 15))
+
+log_ratios %>%
+  filter(total > 100) %>%
+  group_by(log_ratio < 0) %>%
+  top_n(20, abs(log_ratio)) %>%
+  ungroup() %>%
+  mutate(word = reorder(word, log_ratio)) %>%
+  ggplot(aes(word, log_ratio, fill = log_ratio > 0)) +
+  geom_col() +
+  coord_flip() +
+  ylab("log odds ratio") +
+  scale_fill_discrete(name = "", labels = c("negative", "positive"))
+
+
+ggsave(file="out/amazon_food_logodds.pdf", width=iwidth, height=iheight)
+
+
+# Clean up memory
+rm(tmp)
+rm(status_words_count)
+rm(log_ratios)
+```
+
+# N-Gram analysis
+
+```{r}
+
+text_bigrams <- df %>%
+  unnest_tokens(bigram, reviewText, token = "ngrams", n = 3)
+
+
+iwidth = 7
+iheight = 7
+
+theme_set(theme_gray(base_size = 18))
+
+text_bigrams %>%
+  count(bigram, sort=TRUE) %>%
+  top_n(20) %>%
+  ggplot(aes(reorder(bigram, n), n)) +
+  geom_col() +
+  labs(x = NULL, y = "n") +
+  coord_flip()
+
+ggsave(file="out/amazon_food_3gram.pdf", width=iwidth, height=iheight)
+```
+
+
+## N-Gram analysis, filtered for specific words
+
+
+```{r}
+iwidth = 7
+iheight = 7
+
+theme_set(theme_gray(base_size = 18))
+
+text_bigrams %>%
+  filter(grepl("dips", bigram)) %>%
+  count(bigram, sort=TRUE) %>%
+  top_n(20) %>%
+  ggplot(aes(reorder(bigram, n), n)) +
+  geom_col() +
+  labs(x = NULL, y = "n") +
+  coord_flip()
+
+ggsave(file="out/amazon_food_3gram_dips.pdf", width=iwidth, height=iheight)
+```
+
+```{r}
+iwidth = 7
+iheight = 7
+
+theme_set(theme_gray(base_size = 18))
+
+text_bigrams %>%
+  filter(grepl("viva", bigram)) %>%
+  count(bigram, sort=TRUE) %>%
+  filter(n > 3) %>%
+  top_n(20) %>%
+  ggplot(aes(reorder(bigram, n), n)) +
+  geom_col() +
+  labs(x = NULL, y = "n") +
+  coord_flip()
+
+ggsave(file="out/amazon_food_3gram_viva.pdf", width=iwidth, height=iheight)
+```
+
+```{r}
+iwidth = 7
+iheight = 7
+
+theme_set(theme_gray(base_size = 18))
+
+text_bigrams %>%
+  filter(grepl("hopes", bigram)) %>%
+  count(bigram, sort=TRUE) %>%
+  filter(n > 4) %>%
+  top_n(20) %>%
+  ggplot(aes(reorder(bigram, n), n)) +
+  geom_col() +
+  labs(x = NULL, y = "n") +
+  coord_flip()
+
+ggsave(file="out/amazon_food_3gram_hopes.pdf", width=iwidth, height=iheight)
+```
+
+# Skip-gram analysis
+
+```{r}
+# Nevermind. Getting packages installed is taking too long.
+
+#install.packages("quanteda")
+#library(quanteda)
+
+# TODO:
+# Upgrade to OSX 10.11 +
+# Upgrade to R 3.4.3
+
+#install.packages("textTinyR")
+
+
+
+```
+
+
+
+# Word Clouds
+
+```{r}
+set.seed(1234)
+wordcloud(words = unigram_counts$word, freq = unigram_counts$n, min.freq = 1,
+          max.words=200, random.order=FALSE, rot.per=0.35, 
+          colors=brewer.pal(8, "Dark2"))
+
+
+# If you want a copy of the plot on disk, you need to manually save the image in RStudio
+
+```
+
+# TDM and TF-IDF
+
+Let's convert our tidy representation to tm's term document matrix representation, utilizing a TF-IDF weighting along the way.
+
+```{r}
+
+# Choose a random document to study in this section.
+t = df %>%
+  filter(reviewID==24328) %>%
+  select(reviewText)
+
+t$reviewText
+
+tidy_counts = tidy %>%
+  anti_join(stop_words, by=c("word"="word")) %>%
+  count(reviewID, word, sort=TRUE)
+
+tidy_counts %>%
+  filter(reviewID == 24328)
+
+# Cast into a tm Term Document Matrix
+dtm = tidy_counts %>%
+  cast_dtm(reviewID, word, n)
+
+str(dtm)
+inspect(dtm)
+
+# Find terms that occur at least 1000 times
+findFreqTerms(dtm, 1000)
+
+# Find words that correlate. (This is kinda slow.)
+findAssocs(dtm, "plums", 0.65)
+
+# Cast again, only this time using TFIDF weighting
+dtm_tfidf = tidy_counts %>%
+  cast_dtm(reviewID, word, n, weighting=tm::weightTfIdf)
+
+idx = which(dtm$dimnames$Docs == 24328)
+inspect(dtm[idx,])
+sort(as.data.frame(as.matrix(dtm[idx,])), decreasing=T)
+
+idx = which(dtm_tfidf$dimnames$Docs == 24328)
+inspect(dtm_tfidf[idx,])
+sort(as.data.frame(as.matrix(dtm_tfidf[idx,])), decreasing=T)
+
+rm(dtm)
+rm(dtm_tfidf)
+rm(tidy_counts)
+gc()
+```
+
+# Word Clusters
+
+```{r}
+
+
+```
+
+
+# Document Clusters
+
+
+```{r}
+
+
+```
+
+
+
+# Topic Models
+
+```{r}
+
+
+```
+
+
+# Document Classification
+
+Note: this part of the doc was moved to slides_text_amazon_classify.R.
+
+Using the tm package, let's do the entire classification process:
+- Preprocessing
+- Term weighting
+- Split data
+- Building models
+
+```{r}
+
+set.seed(143)
+sample_df = df %>%
+  sample_n(1000)
+
+# a vector source interprets each element of the vector as a document
+sourceData <- VectorSource(sample_df$reviewText)
+
+
+
+# create the corpus
+corpus <- Corpus(sourceData)
+
+# example document before pre-processing
+corpus[[20]]$content
+
+# preprocess/clean the training corpus
+corpus <- tm_map(corpus, content_transformer(tolower)) # convert to lowercase
+corpus <- tm_map(corpus, removeNumbers) # remove digits
+corpus <- tm_map(corpus, removePunctuation) # remove punctuation
+corpus <- tm_map(corpus, removeWords, stopwords('english')) # remove stopwords
+corpus <- tm_map(corpus, stripWhitespace) # strip extra whitespace
+
+# example document after pre-processing
+corpus[[20]]$content
+
+# create term document matrix (tdm)
+tdm <- DocumentTermMatrix(corpus, control = list(weighting = function(x) weightTfIdf(x, normalize = FALSE)))
+
+# inspecting the tdm
+dim(tdm)
+
+```
+
+Split into training and testing.
+```{r}
+N = nrow(tdm)
+
+table(tdm$is.positive)
+
+set.seed(1234)
+idx_train = sample(seq_len(N), size=floor(0.75 * N))
+
+df_all = as.data.frame(as.matrix(tdm))
+
+df_all$is.positive = sample_df$overall >= 5
+df_all$is.positive = factor(df_all$is.positive, labels = c("yes", "no"))
+
+df_train = df_all[idx_train, ]
+df_test = df_all[-idx_train, ]
+```
+
+
+
+```{r}
+library(caret)
+
+# set resampling scheme
+ctrl <- trainControl(method="repeatedcv", number = 10, repeats = 3) #,classProbs=TRUE)
+
+# fit a kNN model using the weighted (td-idf) term document matrix
+# tuning parameter: K
+
+idx = which(colnames(df_train)=="is.positive")
+x = df_train[,-idx]
+y = df_train[,idx]
+```
+
+```{r}
+set.seed(100)
+knn <- train(x= x, y=y, method = "knn", trControl = ctrl) #, tuneLength = 20)
+knn
+knn$finalModel
+
+set.seed(100)
+dt <- train(x= x, y=y, method = "rpart", trControl = ctrl) #, tuneLength = 20)
+df
+dt$finalModel
+
+
+library(rpart)
+library(rpart.plot)
+rpart.plot(dt$finalModel, extra=2)
+
+
+set.seed(100)
+svm <- train(x= x, y=y, method = "svmRadial", trControl = ctrl) #, tuneLength = 20)
+svm
+svm$finalModel
+```
+
+
+```{r}
+
+
+# predict on test data
+knn.tfidf.predict <- predict(knn.tfidf, newdata = tdm_test)
+
+##################################################################
+# ---------------------------------------------------------------
+##################################################################
+
+# fit a kNN model using the unweighted TDM
+# tuning parameter: K
+set.seed(100)
+knn <- train(doc.class ~ ., data = tdmTrain, method = "knn", trControl = ctrl) #, tuneLength = 20)
+
+# predict on test data
+knn.predict <- predict(knn, newdata = tdmTest)
+
+```
+
+
