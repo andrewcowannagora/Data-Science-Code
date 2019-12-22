@@ -1,0 +1,409 @@
+---
+title: "MMA 830 PRO"
+author: "Andrew Cowan-Nagora"
+date: "14/12/2019"
+output: pdf_document
+---
+
+```{r, warning=FALSE,message=FALSE}
+library(dplyr)
+library(magrittr)
+library(tidyr)
+library(lubridate)
+library(readxl)
+library(ggplot2)
+library(ggthemes)
+library(prophet)
+library(data.table)
+library(Matrix)
+library(sqldf)
+library(tidyverse)
+library(reshape2)
+library(Metrics)
+library(caret)
+library(mlr)
+
+```
+
+Load Data
+
+```{r}
+#data is confidential, see tableau public profile for project summary
+data <- read_excel("sales.data.v1.04.xlsx")
+
+#remove giftcard, remove zero and negative sales rows
+data <- data %>% filter(Article != '510801') %>% filter(sales >= 1)
+
+#Convert to date
+data$AdWeekBegDt <- as.Date(data$AdWeekBegDt)
+data$AdWeekEndDt <- as.Date(data$AdWeekEndDt)
+
+#add day count from beginning and month
+min_end_date <- min(data$AdWeekEndDt)
+
+data <- data %>%
+        mutate( DAYS_FROM_BEGINNING = as.integer(AdWeekEndDt - min_end_date) ) %>%
+        mutate( MONTH = month(AdWeekEndDt))
+#        mutate(MONTH_1 = ifelse(MONTH == 1, 1,0)) %>%
+#        mutate(MONTH_2 = ifelse(MONTH == 2, 1,0)) %>%
+#        mutate(MONTH_3 = ifelse(MONTH == 3, 1,0)) %>% 
+#        mutate(MONTH_4 = ifelse(MONTH == 4, 1,0)) %>%
+#        mutate(MONTH_5 = ifelse(MONTH == 5, 1,0)) %>%
+#        mutate(MONTH_6 = ifelse(MONTH == 6, 1,0)) %>%
+#        mutate(MONTH_7 = ifelse(MONTH == 7, 1,0)) %>%
+#        mutate(MONTH_8 = ifelse(MONTH == 8, 1,0)) %>%
+#        mutate(MONTH_9 = ifelse(MONTH == 9, 1,0)) %>%
+#        mutate(MONTH_10 = ifelse(MONTH == 10, 1,0)) %>%
+#        mutate(MONTH_11 = ifelse(MONTH == 11, 1,0)) %>%
+#        mutate(MONTH_12 = ifelse(MONTH == 12, 1,0))
+        #  AdWeek == 34 |
+        #  AdWeek == 35 , 
+        # 1,0))
+        #mutate( DAY = day(CALENDAR_DATE) ) %>%
+        #mutate( WDAY = wday(CALENDAR_DATE) )
+
+#Convert to factor
+data$AdWeek <- as.factor(data$AdWeek)
+data$MONTH <- as.factor(data$MONTH)
+
+
+#str(data)
+
+```
+
+```{r}
+
+#Select top 10 products
+data_T6 <- data %>% filter(Article %in% c('392681', '690537', '46364', '392723', '690539', '46361'))
+
+
+#find avg category price
+avg_cat_price <- sqldf("select AdYearWeek, round(AVG(price),2) as avg_cat_price 
+      from data_T6 
+      group by AdYearWeek ") 
+
+data_T6 <- sqldf("select a.*, b.avg_cat_price 
+      from data_T6 AS a
+      LEFT JOIN avg_cat_price AS b ON a.AdYearWeek = b.AdYearWeek") 
+
+#add market price index
+data_T6 <-data_T6 %>% mutate(price_index = round(100 * (price / avg_cat_price),0))
+
+#find ruffle price
+#ruf <- sqldf("select AdYearWeek, price as ruf_price 
+#      from data_T6
+#     where Article = '690537'
+#      group by AdYearWeek ") 
+
+#data_T6 <- sqldf("select a.*, b.ruf_price 
+#      from data_T6 AS a
+#      LEFT JOIN ruf AS b ON a.AdYearWeek = b.AdYearWeek") 
+
+#find MissVick price
+#vik <- sqldf("select AdYearWeek, price as vik_price 
+#      from data_T6
+#      where Article = '46364'
+#      group by AdYearWeek ") 
+
+#data_T6 <- sqldf("select a.*, b.vik_price
+#      from data_T6 AS a
+#      LEFT JOIN vik AS b ON a.AdYearWeek = b.AdYearWeek") 
+
+#write.csv(data_T6, file = "top6.csv")
+
+```
+
+
+```{r}
+
+# Top 6 products
+# 1) - 392681 Lays Potato Chips Classic 15X255G
+# 2) - 690537 Ruffles Chips Regular 16X220G
+# 3) - 46364 MissVick Sea Salt /Vinegar 16X220G
+# 4) - 392723 Lays Chips Wavy Original 14X255G
+# 5) - 690539 Ruffles Chips All Dressed 16X220G
+# 6) - 46361 MissVick Original 16X220G
+
+#Select top product
+lays <- data_T6 %>% filter(Article == '392681')
+
+#test set
+lays <- lays[1:90,]
+
+#find avg margin per unit for each price point for top product
+avgmargin<- sqldf("select price, round(AVG(unit_cost),2) as avg_unit_cost 
+      from lays 
+      group by price ") 
+
+lays <- sqldf("select a.*, b.avg_unit_cost 
+      from lays AS a
+      LEFT JOIN avgmargin AS b ON a.price = b.price") 
+
+
+#lays <- lays %>% filter(on_promo == 1) 
+#lays <- lays %>% filter(is_holiday == 0)
+
+
+
+```
+
+Build Forecasts
+
+Create Training / Test Sets
+
+```{r}
+
+# Top 6 products
+# 1) - 392681 Lays Potato Chips Classic 15X255G
+# 2) - 690537 Ruffles Chips Regular 16X220G
+# 3) - 46364 MissVick Sea Salt /Vinegar 16X220G
+# 4) - 392723 Lays Chips Wavy Original 14X255G
+# 5) - 690539 Ruffles Chips All Dressed 16X220G
+# 6) - 46361 MissVick Original 16X220G
+
+
+#Training Sets
+lays_classic <- data_T6 %>% filter(Article == '392681') 
+lays_classic_train <- lays_classic[1:90,]
+lays_classic_val <- lays_classic[91:105,]
+
+ruf_reg <- data_T6 %>% filter(Article == '690537')
+ruf_reg_train <- ruf_reg[1:90,]
+ruf_reg_val <- ruf_reg[91:105,]
+
+vick_salt <- data_T6 %>% filter(Article == '46364')
+vick_salt_train <- vick_salt[1:90,]
+vick_salt_val <- vick_salt[91:105,]
+
+lays_wavy <- data_T6 %>% filter(Article == '392723')
+lays_wavy_train <- lays_wavy[1:90,]
+lays_wavy_val <- lays_wavy[91:105,]
+
+ruf_alld <- data_T6 %>% filter(Article == '690539')
+ruf_alld_train <- ruf_alld[1:90,]
+ruf_alld_val <- ruf_alld[91:105,]
+
+vick_orig <- data_T6 %>% filter(Article == '46361')
+vick_orig_train <- vick_orig[1:90,]
+vick_orig_val <- vick_orig[91:105,]
+
+```
+
+Price Elasticity
+
+```{r}
+#plot(log(sales) ~ log(price), data=lays)
+regr <- lm(log(sales) ~ log(price), data=lays)
+#abline(regr, col='red')
+
+regr
+
+# greater than ABS coefficient 1 = elastic
+# 10% increase in price results in 16% less sales
+
+```
+```{r}
+
+set.seed(2019)
+
+#Demand Function
+
+quantity_model <- lays %>% lm(units ~ price, data =.)
+#summary(quantity_model)
+
+
+```
+
+```{r}
+
+#create price simulation
+
+high_price = max(lays$price)
+low_price = min(lays$price)
+
+sim.price <- data.frame(price = seq(low_price, high_price, 0.05))
+
+cost.pred <- lays %>% lm(unit_cost ~ price, data = .)
+
+predicted_cost <- data.frame(predicted.cost = predict(cost.pred, sim.price))
+
+#cbind(sim.price, predicted_cost)
+
+```
+
+Validate cost model
+
+```{r}
+summary(cost.pred)
+
+pred <- predict(cost.pred, lays_classic_val)
+
+R2(pred, lays_classic_val$price)
+mape(pred, lays_classic_val$price)
+mse(pred, lays_classic_val$price)
+RMSE(pred, lays_classic_val$price)
+mae(pred, lays_classic_val$price)
+
+
+```
+
+Looking for Optimal Price
+
+```{r}
+
+demand_curve <- data.frame(price = sim.price$price, 
+                           cost = predicted_cost$predicted.cost)
+                           #price_index = lays$price_index)
+                           
+demand_curve %<>%
+    mutate(quantity_model = 1 * (quantity_model$coefficients[1] +
+                                   quantity_model$coefficients[2] * price
+                                   #quantity_model$coefficients[3] * lays$price_index
+                                   )) %>% gather(model, units, -price, -cost)
+                                                 
+demand_plot <- ggplot(data = lays, aes(x = price, y = units)) +
+  geom_point() +  
+  geom_smooth(se = FALSE, method = lm, colour = "#0080FF") +
+    labs(x = 'Price ($)', y = 'Units', title = 'Demand Curve') + 
+    #geom_vline(xintercept = c(low_price, high_price), colour = "#2A73CC", linetype = "longdash") + 
+    theme(plot.title = element_text(face = "bold"), legend.position = "none") + theme_economist_white(gray_bg = FALSE) + scale_colour_economist()
+
+
+profit_curves <- demand_curve %>%
+    mutate(profit = units * (price - cost)) %>% unique()
+
+maxp <- profit_curves %>% filter(profit == max(profit))
+maxp
+
+profit_plot <- ggplot(data = profit_curves, aes(x = price, y = profit)) +
+    geom_point() +
+    geom_line(colour = "#0080FF") +
+    #geom_smooth(se = F, method = loess, colour = "#0080FF") +
+    labs(x = 'Price ($)', y = 'Profit ($)', title = 'Margin Function') + 
+    geom_vline(xintercept = maxp$price, colour = "#0080FF", linetype = "longdash") +
+    #geom_hline(yintercept = maxp$profit, colour = "#0080FF", linetype = "longdash") +
+    theme(plot.title = element_text(face = "bold"), legend.position = "none") + theme_economist_white(gray_bg = F) + scale_colour_economist()
+
+#geom_vline(xintercept = max(p.max.profit), lty = 2) +
+
+
+demand_plot
+profit_plot
+```
+
+
+```{r}
+
+#Demand Models
+
+set.seed(2019)
+
+lays_classic_f <- lays_classic_train %>% lm(units ~ price + is_holiday, data = .) #+ is_holiday + price_index,
+ruf_reg_f <- ruf_reg_train %>% lm(units ~ price + is_holiday, data = .) #+ is_holiday + price_index
+vick_salt_f <- vick_salt_train %>% lm(units ~ price + is_holiday, data = .) #+ is_holiday + price_index, 
+lays_wavy_f <- lays_wavy_train %>% lm(units ~ price + is_holiday, data = .) #+ is_holiday + price_index, 
+ruf_alld_f <- ruf_alld_train %>% lm(units ~ price + is_holiday, data = .) #+ is_holiday + price_index, 
+vick_orig_f <- vick_orig_train %>% lm(units ~ price + is_holiday, data = .)#+ is_holiday + price_index, 
+
+```
+
+
+```{r}
+#Test model evaluation
+
+summary(lays_classic_f)
+
+pred <- predict(lays_classic_f, lays_classic_val)
+
+R2(pred, lays_classic_val$units)
+mape(pred, lays_classic_val$units)
+mse(pred, lays_classic_val$units)
+RMSE(pred, lays_classic_val$units)
+mae(pred, lays_classic_val$units)
+mean(lays_classic_val$units)
+
+
+```
+
+Load test data
+
+```{r}
+
+test <- read_excel("test2.xlsx")
+
+#find avg category price
+avg_cat_price_test <- sqldf("select AdYearWeek, round(AVG(price),2) as avg_cat_price 
+      from test 
+      group by AdYearWeek ") 
+
+test <- sqldf("select a.*, b.avg_cat_price 
+      from test AS a
+      LEFT JOIN avg_cat_price_test AS b ON a.AdYearWeek = b.AdYearWeek") 
+
+#add market price index
+test <-test %>% mutate(price_index = round(100 *(price / avg_cat_price),0))
+
+#write.csv(test, file = "pindex.csv")
+
+
+```
+
+Create Test Sets
+
+```{r}
+#Test Sets
+lays_classic_test <- test %>% filter(Article == '392681') 
+ruf_reg_test <- test %>% filter(Article == '690537')
+vick_salt_test <- test %>% filter(Article == '46364')
+lays_wavy_test <- test %>% filter(Article == '392723')
+ruf_alld_test <- test %>% filter(Article == '690539')
+vick_orig_test <- test %>% filter(Article == '46361')
+
+```
+
+Predictions
+
+```{r}
+
+lays_classic_pred <- predict(lays_classic_f, lays_classic_test)
+ruf_reg_pred <- predict(ruf_reg_f, ruf_reg_test)
+vick_salt_pred <- predict(vick_salt_f, vick_salt_test) 
+lays_wavy_pred <- predict(lays_wavy_f, lays_wavy_test)
+ruf_alld_pred <- predict(ruf_alld_f, ruf_alld_test)
+vick_orig_pred <-predict(vick_orig_f, vick_orig_test)
+
+final <- data.frame(lays_classic_price = lays_classic_test$price,
+           lays_classic_cost = lays_classic_test$unit_cost,
+           lays_classic_pred = lays_classic_pred,
+           
+           ruf_reg_price = ruf_reg_test$price,
+           ruf_reg_cost = ruf_reg_test$unit_cost,
+           ruf_reg_pred = ruf_reg_pred,
+           
+           vick_salt_price = vick_salt_test$price,
+           vick_salt_cost = vick_salt_test$unit_cost,
+           vick_salt_pred = vick_salt_pred,
+           
+           lays_wavy_price = lays_wavy_test$price,
+           lays_wavy_cost = lays_wavy_test$unit_cost,
+           lays_wavy_pred = lays_wavy_pred,
+           
+           ruf_alld_price = ruf_alld_test$price,
+           ruf_alld_pred = ruf_alld_test$unit_cost,
+           ruf_alld_pred = ruf_alld_pred,
+           
+           vick_orig_price = vick_orig_test$price,
+           vick_orig_cost = vick_orig_test$unit_cost,
+           vick_orig_pred = vick_orig_pred)
+
+#write.csv(final, file = "preds3.csv")
+
+```
+
+```{r}
+final
+```
+
+
+
+
