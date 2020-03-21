@@ -1,0 +1,1226 @@
+---
+title: "R_Prep_ML"
+author: "Andrew Cowan-Nagora"
+date: "06/01/2020"
+output: pdf_document
+---
+
+Understanding when to normalize data
+
+You just learned that although data normalization is not always needed, it rarely hurts. Identifying features with different ranges is a good indication that you might need to apply data normalization, unless the Machine Learning model you are planning to build can handle this type of features.
+
+You plan to cluster FIFA players based on their shot power and release clause amount (in millions EUR). Your clustering algorithm is sensitive to features having dissimilar ranges, so you wonder whether data normalization is required. In this exercise, you will first calculate the range of these two features using a sample of 100 FIFA players. Then you will produce a scatter plot of these features. The dataset is available as fifa_sample and the ggplot2 package is already loaded.
+
+```{r}
+# Q Which of the following scenarios does NOT require data normalization?
+# A Building a regression tree to predict the net value of a FIFA player.
+
+# Glimpse at the dataset
+glimpse(fifa_sample)
+
+# Compute the range of values of each feature in fifa_sample using sapply(). Store the result in the fifa_ranges variable and print it in the same line.
+(fifa_ranges <- sapply(fifa_sample, range))
+
+# Create a scatterplot of fifa_sample with SP on the x axis and RA on the y axis. Set the point color to "blue", the size to 5 and title the scatterplot as "Original data".
+ggplot(fifa_sample, aes(SP, RA)) + 
+  geom_point(colour="blue", size=5) + 
+  labs(title = "Original data", x="Shot power", 
+       y="Release amount (millions EUR)") +
+  theme(plot.title = element_text(size=22),
+        text = element_text(size=18)) +
+  scale_x_continuous(breaks = 
+             round(seq(0, max(fifa_sample$SP), by = 5),1)) 
+
+```
+
+Normalizing features
+
+After exploring your dataset and confirming the need for feature normalization, let us apply both min-max scaling and standardization to the shot power (SP) and release amount (RA) features in the fifa_sample dataset.
+
+The min(), max(), mean() and sd() R functions will help you normalize the data. For your convenience, here are the formulas:
+
+Min-max scaling
+
+x′=x−min(x)max(x)−min(x)
+
+Standardization (Z-score normalization)
+
+x′=x−μσ
+
+Although the scatterplot in the previous exercise did not visually reveal any extreme outlier in either feature, it is still a good idea to look at the distributions of the normalized values produced by the min-max and standardization methods. You can easily do that with the boxplot() function.
+
+```{r}
+# Normalize the two features in fifa_sample by applying both min-max scaling and Z-score normalization. Store the results in the fifa_normalized tibble.
+
+fifa_normalized <- fifa_sample %>% 
+  mutate(SP_MinMax = (SP - min(SP)) / (max(SP) - min(SP)), 
+  RA_MinMax = (RA - min(RA)) / (max(RA) - min(RA)),
+  SP_ZScore = (SP - mean(SP)) / sd(SP),
+  RA_ZScore = (RA - mean(RA)) / sd(RA)
+        )
+# Compute the range of every feature in the fifa_normalized dataset. Store the result in the fifa_normalized_ranges variable.
+(fifa_normalized_ranges <- sapply(fifa_normalized, range))
+
+# Draw three boxplot charts, one with the original distributions of the SP and RA features and the other two with their normalized distributions. All the information is contained in the fifa_normalized tibble.
+boxplot(fifa_normalized[, 1:2], main = 'Original')
+boxplot(fifa_normalized[, 3:4], main = 'Min-Max')
+boxplot(fifa_normalized[, 5:6], main = 'Z-Score')
+
+# Q Browse through the three box plots you just created. Based on the new feature ranges after normalization and the distributions of their normalized values, which normalization method did a better job at preprocessing your data?
+# A Z-score normalization.
+
+```
+
+Exploring and summarizing missing data
+
+The first step when dealing with missing data is to make sure your dataset indeed has missing values. Sometimes this is quite obvious as you clearly see NA values in some of the columns. There are times, however, when other values are used to denote missingness and your job is to explicitly turn these into NAs.
+
+In this exercise, you will explore the cylinder bands dataset to first identify and then summarize the missing values in it using a few handy functions from the naniar package, which is already loaded in your workspace. This dataset uses several numeric attributes to determine whether a piece of roto printing is a cylinder band or not.
+
+```{r}
+# Use two base R functions in tandem to check if any of the values in the bands dataset is NA. After that, call the corresponding function in the naniar package to achieve the same result.
+any(is.na(bands))
+any_na(bands)
+
+# Well, apparently there are no missing values in our dataset. That seems too good to be true! Take a closer glimpse at the data.
+glimpse(bands)
+
+# Use the appropriate function from the naniar package to replace all occurrences of the ? symbol in any variable with the NA value. Save the result in the bands dataset.
+bands <- replace_with_na_all(bands, ~.x == '?')
+
+# Now that you have placed the NA values where they should be in the bands dataset, it is time to compute a summary of the missingness in each variable. Not surprisingly, the naniar package has a handy function for that.
+miss_var_summary(bands)
+
+
+```
+
+Show me your missingness
+
+Visualizing the missingness in a dataset across variables and objects (cases) is a powerful and intuitive way to understand what kind of missing data we are possibly dealing with. The naniar package has a suite of useful functions to make this visualization step really effortless. Let us put some of these functions to work on the bands dataset you wrangled in the previous exercise.
+
+```{r}
+# Visualize the overall missingness in the bands dataset using the appropriate function from the naniar package. Then invoke that function again but group the cases with missing values as closely as possible.
+vis_miss(bands)
+vis_miss(bands, cluster = TRUE)
+
+# Call the appropriate function in naniar to generate a ggplot-like visualization of the missing values in each variable. Then call that function again, but this time use Band_type as your faceting variable.
+gg_miss_var(bands)
+gg_miss_var(bands, facet = Band_type)
+
+# Wrap up your tour of missingness visualizations by plotting the number of missing values in each record. Yes, you probably guessed correctly that there is a naniar function for that too.
+gg_miss_case(bands)
+
+# Q Display the overall missingness of the bands dataset again using vis_miss(), both clustered and unclustered. Then call the gg_miss_fct() function to display a heat map of the missingness per variable, faceted by Band_type. What kind of missing data scenario do you seem to be dealing with here?
+# A Missing At Random (MAR)
+
+```
+
+Imputing missing data
+
+Imputation is a common technique to deal with missing data. In a Machine Learning interview, you might be required to perform modeling on a dataset that requires imputing missing values. Careful selection of an adequate imputation method could pay off quite well down the road. In this exercise, you will impute the missing values in the bands dataset using mean and linear regression as your imputation models.
+
+The naniar and simputation packages for missing data imputation have been loaded in your workspace, as well as dplyr and tidyr for data manipulation.
+
+```{r}
+# Apply mean imputation to all variables with missing values in the bands dataset. Store the result in the imp_mean variable.
+# Impute with the mean
+imp_mean <- bands %>%
+  bind_shadow(only_miss = TRUE) %>% 
+  add_label_shadow() %>% 
+  impute_mean_all()
+
+# Impute the missing values in the Blade_pressure, Roughness and Ink_pct variables in the bands dataset via a linear model with Ink_temperature as the independent variable. The simputation package is already loaded. Save the result as imp_lm.
+# Impute with lm
+imp_lm <- bands %>%
+  bind_shadow(only_miss = TRUE) %>%
+  add_label_shadow() %>%
+  impute_lm(Blade_pressure ~ Ink_temperature) %>%
+  impute_lm(Roughness ~ Ink_temperature) %>%
+  impute_lm(Ink_pct ~ Ink_temperature)
+
+# Q The ink_pct_mean_values and ink_pct_lm_values variables in your workspace contain the imputed values produced by mean and linear imputation models on the Ink_pct variable of the bands dataset. How many unique imputation values were used in each case?
+# A Mean: 1; LM: 23
+
+# Q Why is mean imputation a bad choice for an imputation method?
+# A It reduces the variance of the imputed variable. Since all missing values are imputed with the average value of the variable, then more values will have a deviation of zero from the mean, which reduces the variance. 
+
+
+```
+
+Evaluating imputation models
+
+In the previous exercise, you created two imputation models named imp_mean and imp_lm. Very cool!
+
+Two more models have been created for you, namely imp_median and imp_cc. The former imputes all variables with the median whereas the latter only retains complete cases (cc) by removing the instances with any missing values. Moreover, these four models have been put together in the imp_models tibble. In this exercise, you are going to visualize the output of these imputation models using geom_violin() and judge by yourself which one performed better.
+
+Before doing that though, it is better to convert the imp_models tibble to a long format with the tidyr package. The resulting tibble is called imp_models_long and is available in your workspace. Get ready for plotting now!
+
+```{r}
+# Peek at the first few rows of the imp_models_long tibble available in your workspace.
+head(imp_models_long)
+
+# Create a violin plot using imp_models_long. Set the imputation model (imp_model) as the x axis and value as the y axis. Color the violin plots based on the imputation model and facet by variable.
+ggplot(imp_models_long, aes(x = imp_model, y = value)) + 
+  geom_violin(aes(fill=imp_model)) +
+  facet_wrap(~variable, scales='free')
+
+# Use the imp_models_long tibble to calculate the variance, average and median values of each variable distribution after applying each imputation model. Use the value column in your summarize() call and arrange the results by variable.
+imp_models_long %>% 
+  group_by(imp_model, variable) %>% 
+  summarize(var = var(value), avg = mean(value), 
+  median = median(value)) %>% 
+  arrange(variable)
+
+# Q From the faceted violin plot and the distribution stats for each imputation method, use your best judgement to choose the best imputation method for the Blade_pressure variable.
+# A Linear imputation.
+
+```
+
+Univariate outlier detection: the IQR rule
+
+Outlier detection is an important step in your exploratory data analysis. Anomalous observations (also known as outliers), if not properly handled, can skew your analysis and produce misleading conclusions.
+
+Box plots help visually identify potential outliers as they summarize the distribution of a numerical variable. A commonly accepted rule of thumb is that an outlier is any value below Q1−1.5×IQR
+or above Q3+1.5×IQR, where Q1 and Q3 are the first and third quartiles, respectively, of the variable distribution and IQR=Q3−Q1
+
+is the interquartile range.
+
+In this exercise, you will apply the IQR rule to spot outliers in car fuel consumption. The cars dataset is already loaded. The quantile() function can be used to calculate Q1
+and Q3.
+
+```{r}
+#Q Why is important to detect and treat outliers?.
+#A Because they can drastically bias/change the fit estimates and predictions.
+
+# Peek at the first few rows of the cars dataset, then display a box plot with the distribution of the fuel consume variable.
+head(cars)
+boxplot(cars$consume)
+
+# Compute the summary of the consume column containing its minimum, first quartile, median, third quartile, and maximum value. Save it in consume_quartiles and print the results in the same line.
+(consume_quartiles <- quantile(cars$consume))
+
+# Use the information in the consume_quartiles variable to compute the upper threshold as Q3+1.5×IQR. Save it as upper_th.
+upper_th <- consume_quartiles[4] + 1.5 * (consume_quartiles[4] - consume_quartiles[2])
+
+# Sort in ascending order all unique values in the consume variable distribution that are flagged as outliers.
+sort(unique(cars$consume[cars$consume > upper_th])) # The IQR rule has flagged 10 elements beyond Q3 as outliers.
+
+```
+
+The KNN distance score
+
+Distance and density-based outlier detection methods both lean on the reasonable assumption that anomalous data points often lie far from their neighbors. In this exercise, you will use K-nearest neighbors (KNN) to calculate anomaly scores for each data point in the 2-dimensional version of the cars dataset.
+
+An efficient calculation of the nearest neighbors (NN) of any data point via specialized data structures is provided in the FNN package, which is already loaded for you. The get.knn() function returns a list with two elements, one of which being the distance matrix between each point and its K
+
+NNs.
+
+Before you start, remember to normalize the cars dataset in order to avoid the undesirable effect of dissimilar feature ranges on the distance matrix calculation.
+
+```{r}
+#    Call scale() on the cars dataset before converting it to a dataframe. Leave the result in the cars_scaled variable.
+#    Plot distance as a function of consume in cars_scaled and label your plot "Fuel consumption vs. distance".
+cars_scaled <- as.data.frame(scale(cars))
+plot(distance ~ consume, data = cars_scaled, 
+     main = "Fuel consumption vs. distance")
+
+# Call get.knn() on cars_scaled with 7 nearest neighbors (NNs) and save the result as cars_knn. 
+# Create a new column in cars1 named knn_score that calculates the mean of every row in the cars_knn$nn.dist distance matrix.
+cars_knn <- get.knn(data = cars_scaled, k = 7)
+cars1 <- cars
+cars1$knn_score <- rowMeans(cars_knn$nn.dist)
+
+# Calculate the indices of the 5 observations with the largest KNN scores by calling order() on the new column created in the previous step. Leave them in the top5_knn variable.
+# Print the actual knn_score values indexed by top5_knn.
+# Print top 5 KNN scores and data point indices: top5_knn
+(top5_knn <- order(cars1$knn_score, decreasing = TRUE)[1:5])
+print(cars1$knn_score[top5_knn])
+
+# Plot distance as a function of consume in the cars1 dataset. This time, display the size of each data point using its knn_score.
+plot(distance ~ consume, data = cars1,  cex = knn_score, pch = 20) # Looks like observations 320, 107, 56, 62 and 190 are the most likely top 5 outliers 
+
+```
+
+The LOF score
+
+In the previous exercise, you calculated anomaly scores for each data point in the 2-dimensional cars dataset based on the KNN distance criterion. Now you will practice with a density-based method. You will use Local Outlier Factor (LOF) to compute the anomaly scores for the same data points. Knowing how to detect outliers using different methods is a good skill to have when facing a Machine Learning interview.
+
+The LOF method can be invoked via the lof() function in the dbscan package, which has been pre-loaded for you.
+
+```{r}
+# Call scale() on the cars dataset before converting it to a dataframe. Leave the result in cars_scaled.
+cars_scaled <- as.data.frame(scale(cars))
+
+# Add the lof_score column to cars1 by computing the LOF anomaly score for each data point in cars_scaled using the 7 nearest neighbors.
+cars1 <- cars
+cars1$lof_score <- lof(cars_scaled, k = 7)
+
+# Calculate the indices of the 5 observations with the largest LOF scores by calling order() on the new column created in the previous step. Leave them in the top5_lof variable, 
+(top5_lof <- order(cars1$lof_score, decreasing = TRUE)[1:5])
+print(cars1$lof_score[top5_lof])
+
+# Plot distance as a function of consume in the cars1 dataset. This time, display the size of each data point using its LOF score.
+plot(distance ~ consume, data = cars1, cex = lof_score, pch = 20)
+
+# Q Now compare the top 5 anomalous scores produced by both the KNN distance method and the LOF method. Print the top5_knn variable to the console. The top5_lof variable was already printed in the previous step. How many data points are identified among the top 5 outliers by both methods?
+# A 1, Data point 320 (the extreme outlier in the middle top of the figure) ranked among the top 5 using both methods
+
+```
+
+Interpreting linear regression
+
+Now that you have learned a tidbit about the importance of interpretability and some interpretable Machine Learning models, let's test these concepts with a series of exercises.
+
+One of the clients of your All-Powerful analytics company is interested in predicting a car's fuel consumption (consume variable) from several indicators such as distance traveled, speed, exterior temperature, gas type and whether the air conditioner was on. However, the client has made it clear that they want to understand the reason why a particular fuel consumption value is predicted. consume is expressed in liters/100 km.
+
+In this exercise you will build a multivariate regression model on the car dataset to meet your client needs. The dplyr package has been pre-loaded for data manipulation.
+
+```{r}
+# Glimpse into the car dataset using the corresponding dplyr function. This package is already loaded for you.
+glimpse(car)
+
+# Build a multivariate regression model on the car dataset to predict fuel consumption (consume) using all other predictors. Store your model in the car_lr variable.
+car_lr <- lm(consume ~., data = car)
+
+# Summarize the regression model and carefully examine the table of coefficient estimates. Then predict the consume variable of a new instance in the test_instance variable using the linear regression model.
+summary(car_lr)$coefficients
+predict(car_lr, test_instance)
+
+# Q Examine again the coefficient table produced by the linear regression model. Which of the following interpretations is NOT correct?
+# A Switching to SP 98 gas type (gas_typeSP98) increases the fuel consumption by 0.0014 liters/100 km.
+
+```
+
+Interpreting decision tree
+
+Great job on the multivariate regression model! Now, try meeting your client's need for an interpretable ML solution with a regression tree to predict the value of the fuel consumption (consume) variable based on all other features.
+
+The car dataset and the test_instance variable you worked with in the previous exercise are available again in your workspace. Additionally, the rpart, rpart.plot and rattle packages have been pre-loaded. You will need them to create a regression tree, visualize it and extract decision rules from the tree, respectively.
+
+```{r}
+# Build a regression tree using rpart() to predict consume using all other predictors in the car dataset. Name your model car_dt.
+car_dt <- rpart(consume ~., data = car)
+
+# Use the appropriate functions in the rattle and rpart.plot packages to display a fancy version of the car_dt tree and extract decision rules from the tree.
+
+# Fancy tree plot
+fancyRpartPlot(car_dt)
+
+# Extract rules from the tree
+rpart.rules(car_dt)
+
+# Now predict the fuel consumption for the test_instance variable in your workspace using the regression tree.
+predict(car_dt, test_instance)
+
+# Q Wonderful! Now take a look at the decision rules you extracted from the decision tree car_dt using rpart.rules(). Then type test_instance in the console. Find out the rule that applies to the test_instance variable given its feature values. Heads up! You will need to round up your prediction to one decimal digit in order to match one of the rule consequents.
+# A distance >= 12.2 & temp_outside < 7
+
+```
+
+Ridge regression
+
+Ridge regression is a popular technique to combat overfitting in regression models. Now, you will apply this method to predict PlayerValue (in millions of EUR) using 36 performance-related regressors in a sample of 500 FIFA players named fifa19_scaled. The data has already been centered and scaled for your convenience.
+
+An Ordinary Linear Squares (OLS) regression model in caret has been fitted to this data. The regression coefficients can be found in the OLS column of the coefs data frame. At the end of this exercise, you will add another column with the ridge regression coefficients.
+
+The caret and dplyr packages have been preloaded.
+
+```{r}
+# Glimpse at the fifa19_scaled dataset to familiarize yourself with the FIFA player information. PlayerValue is the scaled dependent variable.
+glimpse(fifa19_scaled)
+
+# Create a caret train object named mdlRidge using ridge regression (method="ridge") to predict PlayerValue from all other variables. Explore 8 possible values for tuning the λ regularization parameter.
+mdlRidge <- train(PlayerValue ~., data = fifa19_scaled, method = "ridge", tuneLength = 8)
+
+# Fantastic! Now plot the ridge caret object to visualize the Root Mean Squared Error (RMSE) as a function of λ.
+plot(mdlRidge)
+
+# Call the predict() function on the finalModel created by mdlRidge, extract the prediction coefficients and store them in coefRidge.
+# Add the RidgeAll column to coeffs with the coefficients from the last row in coefRidge.
+coefRidge <- predict(mdlRidge$finalModel, type='coef', mode='norm')$coefficients
+coefs$RidgeAll <- coefRidge[nrow(coefRidge),]       
+print(coefs)
+
+```
+
+Lasso regression
+
+Great work applying ridge regression to the fifa19_scaled data! Let's follow a similar approach and apply Lasso regression to the same dataset. As done before, you will create a new column in the coefs data frame with the regression coefficients produced by this regularization method. You will also add another column with the coefficients of the top 5 regressors as determined by Lasso.
+
+To retrieve the coefficients from the caret object, you need to call predict() using the object's finalModel and specify type='coef' and mode='norm', then retain the coefficients column. This will give you a coefficient matrix that can be read in a bottom-up manner: the last row has all variables present whereas the top row has all variables eliminated.
+
+```{r}
+# Create a caret train object named mdlLasso using lasso regression to predict PlayerValue from all other variables. Explore 8 possible values for tuning the model hyperparameter.
+mdlLasso <- train(PlayerValue ~., 
+           data = fifa19_scaled,
+           method = 'lasso', tuneLength = 8)
+
+# Neat! Now plot the lasso caret object to visualize the Root Mean Squared Error (RMSE) as a function of its hyperparameter.
+plot(mdlLasso)
+
+# Retrieve the list of coefficients at each step of the final ridge regression model and store them in coefLasso (read the above instructions).
+coefLasso <- predict(mdlLasso$finalModel, type='coef', mode='norm')$coefficients
+
+# Finally, add the LassoTop5 and the LassoAll columns to our coefs data frame with the coefficients for the 6th step and the last step, respectively.
+(coefs$LassoTop5 <- coefLasso[6,])
+(coefs$LassoAll <- coefLasso[nrow(coefLasso),])
+
+
+```
+
+Elastic net regression
+
+You are quickly getting the hang of regularization methods! Let's now apply elastic net, which brings together L1 and L2 regulatization into a single, powerful approach. In a Machine Learning interview, trying out several regularization methods on a given problem speaks loudly of your ability to simplify model complexity and thus help avoid overfitting.
+
+As in the previous exercise, to retrieve the coefficients from the caret object, you need to call predict() using the object's finalModel and specify type='coef' and mode='norm', then retain the coefficients column. This will give you a coefficient matrix that can be read in a bottom-up manner: the last row has all variables present whereas the top row has all variables eliminated.
+
+```{r}
+# Create a caret train object named mdlElasticNet using elastic net (method="enet") to predict PlayerValue from all other variables. Explore 8 possible tuning values for each hyperparameter.
+mdlElasticNet <- train(PlayerValue ~., data = fifa19_scaled, method = "enet", tuneLength = 8)
+           
+
+# Good job! Now plot the elastic net caret object to visualize how Root Mean Squared Error (RMSE) varies as a function of its two hyperparameters.
+plot(mdlElasticNet)
+
+# Retrieve the coefficients at each step of the final elastic net model and save them as coefElasticNet. 
+# Add the ElasticNetTop5 and ElasticNetAll columns to coefs with the coefficients for the 6th and the last step, respectively.
+
+(coefs$ElasticNetTop5 <- coefElasticNet[6,])
+(coefs$ElasticNetAll <- coefElasticNet[nrow(coefElasticNet),])
+
+# Q Now that you have compiled regression coefficients for all 35 predictors using the basic regression model and three of its regularized extensions, let us examine the results. The coefs_all dataframe has this information. All methods agree that one of the predictors below has the strongest positive impact on a player's net worth. Which one?
+# A Potential
+
+```
+
+Bias-variance analysis
+
+Understanding your model's performance in terms of bias and variance is an important step to decide on possible improvements.
+
+In this exercise, you are going to train a Multi-Layer Perceptron (MLP) neural network on a subset of the pulsar classification dataset to decide whether a star belongs to the pulsar category or not based on eight numerical descriptors. You will then calculate the classifier's bias and variance and assess its performance based on these two indicators.
+
+The pulsar data has been already split into 80% training and 20% testing for you. They are available in the pulsar_train and pulsar_test variables. The nnet package provides an easy way of building an MLP model, so we have pre-loaded it.
+
+```{r}
+# Fit an MLP model with 3 hidden neurons on the pulsar_train data to predict Class from all other variables. Save your model in the mdlNNet variable.
+mdlNNet <- nnet(Class ~., data = pulsar_train, size = 3)
+
+# Predict class labels on pulsar_train using your model.
+# Compute the train_cm confusion matrix from your predictions and the Class values in pulsar_train. 
+# Compute train_error as the sum of the diagonal of train_cm divided by the total sum.
+pred_train <- predict(mdlNNet, pulsar_train, type="class")
+train_cm <- table(pred_train, pulsar_train$Class)
+(train_error <- 1 - sum(diag(train_cm)) / sum(train_cm))
+
+# Repeat the previous steps but now compute your test error using pulsar_test. Save your test predictions as pred_test, the confusion matrix as test_cm and your test error as test_error.
+pred_test <- predict(mdlNNet, pulsar_test, type="class")
+test_cm <- table(pred_test, pulsar_test$Class)
+(test_error <- 1 - sum(diag(test_cm)) / sum(test_cm))
+
+# Q Great job so far! Now press the Run Code button and check the values of the train_error and test_error variables in the console. Use them to estimate the bias and variance of your MLP model. What can you conclude about its performance?
+# A The model has high bias: it is underfitting. Your model has 8% bias and 0.3% variance. Though reasonably good for a first try, this amount of avoidable bias could be likely improved. 
+
+```
+
+Reducing avoidable bias
+
+In the previous exercise, you realized that a Multi-Layer Perceptron (MLP) neural network with 3 hidden units was underfitting the pulsar_train dataset. In the video exercise, several options for solving the underfitting problem were mentioned, i.e., reducing the avoidable bias in your model. Be careful though: it is possible that while aiming to reduce bias, you end up increasing the variance.
+
+In this exercise you are going to apply one of those options: increasing the model size. For your MLP model, this means increasing the number of hidden units in the hidden layer, which is controlled by the size parameter in the nnet() function call.
+
+As before, the pulsar_train and pulsar_test datasets are available in your workspace and the nnet package has been pre-loaded.
+
+```{r}
+# Q Which of the following is NOT an option to reduce model bias?
+# A Parallelize your algorithmic implementation.
+# 1 Increase the model size.
+# 2 Modify input features using error analysis.
+# 3 Reduce or eliminate regularization.
+
+# Fit an MLP model with 5 hidden neurons using the nnet package on the pulsar_train data to predict Class from all other variables. Save your model in the mdlNNet variable
+mdlNNet <- nnet(Class ~., data = pulsar_train, size = 5)
+
+# Predict class labels on the training data using your model. Name your predictions pred_train.
+# Compute the train_cm confusion matrix from your predictions and the true Class values. Then calculate the train_error using train_cm.
+pred_train <- predict(mdlNNet, pulsar_train, type="class")
+train_cm <- table(pred_train, pulsar_train$Class)
+(train_error <- 1 - sum(diag(train_cm)) / sum(train_cm))
+
+# Repeat the previous steps but now compute your test error using pulsar_test. Save your test predictions as pred_test, the confusion matrix as test_cm and your test error as test_error.
+pred_test <- predict(mdlNNet, pulsar_test, type="class")
+test_cm <- table(pred_test, pulsar_test$Class)
+(test_error <- 1 - sum(diag(test_cm)) / sum(test_cm))
+# Increasing the number of hidden neurons from 3 to 5 reduced the model bias by 2.3%, although it also slightly increased its variance. 
+
+```
+
+Ensemble methods use multiple learning algorithms to obtain better predictive performance than what any of them alone could have achieved. That being said, it is not true that combining multiple learning algorithms always leads to a superior result.
+
+In this series of exercises, you will predict whether a star belongs to the pulsar class given eight numerical attributes. The decision attribute is named Class and takes yes/no values. You will train four learning algorithms on identical resamples of the training data and check their individual performance. Then you will check if they are suitable for building an ensemble and apply the stacking strategy.
+
+The caret and caretEnsemble packages have been preloaded and the training dataset is available in your workspace.
+
+```{r}
+# Q What is an important aspect to consider when choosing the set of base learners for an ensemble model?
+# A That they are weakly correlated with each other in their predictions.
+
+# Create a trainControl object using caret for a 5-fold cross validation. Specify that you want class probabilities computed in addition to the predicted class labels.
+control <- trainControl(method = "cv", 
+                        number = 5, 
+                        savePredictions = TRUE, 
+                        classProbs = TRUE)
+
+# Create a character vector with the names of your four base learners: 'rpart', 'glm', 'knn' and 'svmRadial'
+baseLearners <- c('rpart', 'glm', 'knn', 'svmRadial')
+
+# Use the correct function in the caretEnsemble package to create a list of caret's train objects. Specify the formula, the training data, the train control specs and the vector of base learners. Save it as models and then summarize it.
+models <- caretList(Class ~ ., 
+                    data = training, 
+                    trControl = control, 
+                    methodList = baseLearners)
+summary(models)
+
+```
+
+Evaluating base learners' performance
+
+Before you proceed to create an ensemble model from the set of base learners, it is important to evaluate how they are doing individually on the classification task. Since they were all trained on identical resamples of the training data, It is also key to ensure their predictions are not highly correlated, as this could impact the efficacy of the entire ensemble model.
+
+In this exercise, you will evaluate the performance of each base learner as well as their prediction correlations. The list of caret's train objects created through caretList() is available in your workspace as models.
+
+```{r}
+# Using your models list and the appropriate function in the caret package, retrieve the classification results for each base learner in each resample. Save them as results, then summarize them.
+results <- resamples(models)
+(results_summary <- summary(results))
+
+# Q Look at the classification results in the console. In terms of average accuracy across resamples, which of the four base learners did best?
+# A glm
+
+# Call the appropriate function in caret to display in the console the correlation among the different base learners' prediction results. Do they seem to be highly correlated?
+modelCor(results)
+
+# Display a scatter plot matrix of these results across resamples. Use the splom() function from the lattice package.
+splom(results)
+
+```
+
+Stacking the base learners
+
+Given that many Machine Learning problems are quite challenging to solve for a single learning method, you ought to know how to build stronger solvers through the magic of ensemble models. Stacking is a simple yet quite powerful technique for building ensemble models. A stacked ensemble model is a meta-learner since it learns to predict the outcome not from the original data but from the predictions returned by the set of base learners.
+
+In this exercise you will build a stacked ensemble out of the four base learners in models. The caret package has been preloaded and the control object holds the trainControl specs used to learn the base models.
+
+```{r}
+# Q What are the components of an stacked ensemble model?
+# A Predictions from base models and a supervisor model that learns how to best combine their predictions.
+
+# Load the caretEnsemble package and set the initial seed to 123.
+# Stack the base learners in models using a generalized linear model (method="glm"), while setting "Accuracy" as your metric and passing the control object as the train control.
+library(caretEnsemble)
+set.seed(123)
+stack.glm <- caretStack(models, method="glm", metric="Accuracy", trControl=control)
+
+# Print the stacked ensemble and compare its performance to the summary of the individual base learners available in the results variable.
+print(stack.glm)
+summary(results)
+
+# Q Now that you have seen the stacked ensemble's and individual base learners' performance across different resamples of your training data, which one did better in terms of average accuracy across resamples?
+# A The stacked ensemble model
+
+```
+
+Predicting on test data
+
+The stacked ensemble's performance on the training data was encouraging, wasn't it? Let's try predicting again with each base learner and then with the stacked model, but this time on the test data. In a Machine Learning interview, you will need to decide whether the extra complexity brought by your ensemble model is justified based on the performance gains with respect to the set of individual base learners. This exercise caps off all the efforts you have been doing in the last few exercises.
+
+A custom function named evaluateModel() has been written for you, which takes in the training object and test data, and returns the model accuracy and AUC score. You can check out its source code by typing evaluateModel in the console.
+
+```{r}
+#Evaluator
+
+function(trainObject, testData) {
+  # Compute binary yes/no predictions and class probabilities
+  model_preds <- predict(trainObject, testData)
+  model_probs <- predict(trainObject, testData, type="prob")
+
+  # Compute accuracy and AUC values
+  model_acc <- accuracy(testData$Class, model_preds)
+  model_auc <- auc(testData$Class == 'yes', model_probs[, 2])
+
+  # Return model accuracy and AUC
+  c(model_acc, model_auc)
+  }
+```
+
+```{r}
+# Apply the evaluateModel() custom function to each base learner in stack.glm$models on the testing dataset. Store the result in the baseLearnerStats matrix.
+# Convert the above matrix to the baseLearnerDF data frame.
+baseLearnerStats <- sapply(X=stack.glm$models, FUN=evaluateModel, testing)
+baseLearnerDF <- data.frame(baseLearnerStats, row.names = c('acc', 'auc'))
+
+# Use your stack.glm model to predict on the testing data. Save the predictions as stack_preds. 
+# Use the appropriate function in the Metrics package (already loaded) to compute the model's accuracy. Save it as stack_acc.
+stack_preds <- predict(stack.glm, testing)
+stack_acc <- accuracy(testing$Class, stack_preds)
+
+# Use your stack.glm model to predict class probabilities on the testing data. Save them as stack_preds_probs. 
+# Use the appropriate function in the Metrics package (already loaded) to compute the model's AUC. Save it as stack_auc.
+stack_preds_probs <- predict(stack.glm, testing, type="prob")
+stack_auc <- auc(testing$Class == 'yes', stack_preds_probs)
+
+# Finally, column-bind the results from the base learners (available in the baseLearnerDF data frame) with those from the stacked ensemble (the stack_acc and stack_auc variables) into a single data frame named allLearnersDF.
+(allLearnersDF <- cbind(baseLearnerDF, list(stack=c(stack_acc, stack_auc))))
+
+# Great job! Looks like this particular stacked ensemble implementation did not achieve the highest accuracy on the test data but it did slightly better than the best-performing base learner in AUC terms. This is still encouraging given the fact that the set of base learners showed high correlation in their predictions. 
+
+```
+
+Checking K-means assumptions
+
+A very common issue in Machine Learning is applying a model without first checking whether your data meets the model's assumptions. By doing so, your analysis will likely arrive at some misleading conclusions.
+
+In this exercise, you will be working with the mall data set, which contains 200 observations corresponding to mall customers characterized by means of three attributes: their age, annual income and spending score. You want to discover meaningful groups of customers and are excited to unleash the power of K-means on your data. Before doing that though, you are going to check whether your data meets K-means' assumptions or not.
+
+The dplyr package has been loaded for you.
+
+```{r}
+# Glimpse on the mall dataset.
+glimpse(mall)
+
+# Use sapply() to calculate the range of values for every column in your dataset. This will give you an idea of whether your data needs to be scaled prior to clustering or not.
+sapply(mall, range)
+
+# Now try to detect skewness in your variables. Plot the histogram of the Age, SpendingScore and AnnualIncome variables, in that order. Use 10 buckets for each histogram.
+# Age histogram 
+hist(mall$Age, 10)
+
+# Spending score histogram 
+hist(mall$SpendingScore, 10)
+
+# Annual income histogram 
+hist(mall$AnnualIncome, breaks=10)
+
+# Q That was a quick but helpful exploratory data analysis on the mall dataset. Based on your findings, do you need to apply any transformations to the data before tossing it to K-means?
+# A Yes. The data needs to be normalized and one or more variables need to be transformed to remove their skewness. (income)
+
+
+```
+
+Using the elbow method
+
+In the previous exercise you realized that you needed to transform your mall data before applying K-means clustering. This was due to the fact that there were large differences in the ranges of the individual variables and also that the AnnualIncome variable had a skewed distribution. The data has been preprocessed by applying a logarithmic transformation to AnnualIncome and scaling all variables through standardization. The new mall_scaled dataset is already available in your workspace.
+
+Now you are going to cluster this data via K-means. You will try different values for K
+
+and select the optimal one using the elbow method.
+
+The pre-loaded stats package provides the kmeans() function, which returns an object with all the information you need. Good luck!
+
+```{r}
+# Create a numerical vector named ratios by repeating the value 0 ten times. You will use this vector to store the WSS/TSS ratio for each value of K between 1 and 10 in your elbow analysis.
+ratios <- rep(0, 10)
+
+# Try all values of k in the 1-10 range. Cluster mall_scaled by calling kmeans() with each k and 20 restarts. Save it as mall_c.
+# Store in the k-th element of ratios the quotient between the tot.withinss and totss properties in mall_c.
+for (k in 1:10) {
+  # Cluster mall: mall_c
+  mall_c <- kmeans(mall_scaled, k, nstart=20)
+  
+  # Save the ratio WSS/TSS in the kth position of ratios
+  ratios[k] <- mall_c$tot.withinss / mall_c$totss
+}
+
+# Create a line plot to display the contents of your ratios variable. Set type="b" and specify "number of clusters" as the x axis label.
+plot(ratios, type="b", xlab="number of clusters")
+
+# Q Nice chart! If you were to apply the rule of thumb introduced in the video exercise, which value of K would you choose?
+# A 6, elbow
+
+```
+
+Interpreting your clustering results
+
+Great job figuring out that your data is best represented by six clusters! The fun comes now when you try to interpret your clustering results. This step should result in extracting valuable insights from these groups.
+
+In this final exercise, you are going to calculate the average values of each customer attribute per cluster and label these cluster representatives according to your business needs.
+
+The mall_scaled dataset and the dplyr package for data manipulation have been loaded for you.
+
+```{r}
+# Cluster the mall_scaled data into six clusters and have K-means restart 20 times. Save your clustering results in the mall_6 variable.
+mall_6 <- kmeans(mall_scaled, 6, nstart = 20)
+
+# In your original mall dataset, add a new column named cluster that contains the cluster index assigned to each data point by K-means. Then group by this column and compute the average of each column. This will be shown in the console.
+mall %>%
+  mutate(cluster = mall_6$cluster) %>%
+  group_by(cluster) %>%
+  summarize_all(mean)
+
+# Q Now the challenge is to label each cluster based on its average descriptor values. For example, cluster 1 could be labeled Young spenders with high income. Which of the following labels best describes cluster 4?
+# A More established earners with low spending habits.
+
+```
+
+Comparing clustering methods: internal measures
+
+Deciding which clustering algorithm best applies to your data is not a trivial task, as discussed in the last video. Thankfully, the clValid R package allows you to quickly compare several clustering methods using a combination of internal and stability measures. Stability measures are a particular kind of internal measures that gauge the consistency of a clustering result by comparing it with the clusters obtained after each column is removed, one at a time.
+
+Using clValid, you can run different clustering methods on your data and calculate both types of metrics. clValid implements three internal measures and four stability measures.
+
+The clValid package has been pre-loaded. Let's see it in action on your mall_scaled data.
+
+```{r}
+# Create a character vector named methods with the entries "hierarchical", "kmeans" and "pam". These are the three clustering algorithms we are going to focus our analysis on.
+methods <- c("hierarchical", "kmeans", "pam")
+
+# Use the clValid() function to compare the clustering methods in methods on the mall_scaled data. Test the number of clusters in the range 2 to 10 while setting internal validity measures. Assign your output to results.
+results <- clValid(mall_scaled, 
+                  2:10, 
+                  clMethods = methods,
+                  validation = "internal"
+                  )
+summary(results)
+
+
+```
+
+Comparing clustering methods: stability measures
+
+As mentioned before, stability measures are a particular kind of internal measures that gauge the consistency of a clustering result by comparing it with the clusters obtained after each column is removed, one at a time. clValid implements four stability measures: APN, AD, ADM and FOM. More details can be found by typing help(clValid) in the console.
+
+Let's compare the same three clustering methods according to these four stability measures on your mall_scaled data.
+
+```{r}
+#Create a character vector named methods with the entries "hierarchical", "kmeans" and "pam". These are the three clustering algorithms we are going to focus our analysis on.
+methods <- c("hierarchical", "kmeans", "pam")
+
+# Use the clValid() function to compare the clustering methods in methods on the mall_scaled data. Test the number of clusters in the range 2 to 10 while setting stability validity measures. Assign your output to results.
+results <- clValid(mall_scaled, 
+                  2:10, 
+                  clMethods = methods,
+                  validation = "stability"
+                  )
+
+summary(results)
+
+# Q Type help(clValid) in the console to learn more about the stability metrics implemented in the clValid package. Which of the three clustering algorithms had the smallest average distance between cluster centers for observations placed in the same cluster with/without column removal?
+# A 
+
+```
+
+Visualizing cluster prototypes
+
+In an earlier exercise you found out that K-means with 7 clusters achieves the best Silhouette coefficient among the three clustering algorithms. Wouldn't it be great to visualize the original data and discover where K-means placed the cluster centroids? Moreover, you can compare these centroids to the cluster medoids returned by PAM. Since your dataset only contains three variables, you can easily generate a three-dimensional plot using the plot3D R package.
+
+The mall_scaled data is preloaded in your workspace together with the dplyr and plot3D packages.
+
+The results object returned by clValid is also available. You can access the information about each clustering algorithm via the results@clusterObjs slot.
+
+```{r}
+# Create a 3D scatter plot for the standardized mall_scaled data by calling the points3D() function from the pre-loaded plot3D package. Display the points in blue.
+points3D(x = mall_scaled[, 1], y = mall_scaled[, 2], 
+         z = mall_scaled[, 3], col = "blue")
+
+# Retrieve the centers property from the K-means object with K=7 from results@clusterObjs and assign it to km_centers.
+# Add each column of km_centers to the x, y and z axes, respectively, of the previous plot and display them in red.
+# Get K-means centroids for K = 7 and add them to the plot
+km_centers <- results@clusterObjs$kmeans$`7`$centers
+points3D(x = km_centers[, 1], y = km_centers[, 2], 
+         z = km_centers[, 3], col = "red", 
+         pch = 20, add = TRUE, cex = 2.5)
+
+# Retrieve the indices of the PAM medoids for K=7 from results@clusterObjs. Save them as pam_idxs.
+# Subset the mall_scaled data using these indices and store the actual medoids in pam_med.
+# Add the medoids to the previous plot in green.
+pam_idxs <- results@clusterObjs$pam$`7`$medoids
+pam_med <- mall_scaled[pam_idxs, ]
+points3D(x = pam_med[, 1], y = pam_med[, 2], z = pam_med[, 3], 
+         col = "green", pch = 20, add = TRUE, cex = 2.5)
+
+# Q Great work! Looks like both PAM and K-means identified promising cluster areas; however, K-means managed to spread the cluster representatives better. This shows why it outperformed PAM in terms of the Silhouette metric. Take a closer look at the final plot. How many of the cluster centroids generated by K-means do NOT have a nearby PAM medoid?
+# A 1
+
+```
+
+Types of feature selection methods
+
+Feature selection allows you to remove irrelevant features from your dataset prior to the learning process. The caret package provides several implementations of feature selection methods. Most of these implementations are supervised approaches, where you can include information about the outcome (class/response variable) as part of your selection criteria.
+
+There are, however, two simple unsupervised feature selection strategies in caret that could prove quite helpful down the road, i.e., (1) removing features with zero or near-zero variance and (2) removing highly correlated features. Before we explain how to do that, let's test your knowledge about the three different types of feature selection methods.
+
+```{r}
+# Q You implemented a method to explore all possible subsets of 5 features in your data and select the one that maximizes KNN performance. Which type of feature selection method is that one?
+# A Wrapper
+
+```
+
+Removing near-zero-variance features
+
+An easy unsupervised manner of removing irrelevant features is checking which ones have zero or near-zero variance.
+
+Zero-variance features are those that only have a unique value, hence they do not carry any meaningful information. Furthermore, they might cause the model to crash or become unstable.
+
+Near-zero-variance features are those having a few unique values that occur very rarely. These features could mislead the model training or even become zero-variance when splitting the data into multiple subsets for validation purposes.
+
+Fortunately, caret has the nearZeroVar() function, which makes this task quite easy. Try it out on a modified version of the Google Apps dataset named apps in your workspace. The dplyr package has also been loaded.
+
+```{r}
+glimpse(apps)
+
+# Retrieve and print the names of the zero-variance or near-zero-variance predictors in the nzv variable.
+nzv <- nearZeroVar(apps, names = TRUE)
+print(nzv)
+
+# Compute the frequency of each unique value in the HasPositiveReviews and Price features, in that order. Check for yourself why these two features are flagged by caret.
+# Frequency of the HasPositiveReviews attribute
+table(apps$HasPositiveReviews)
+
+# Frequency of the Price attribute
+table(apps$Price )
+
+# Excellent! Looks like the most common Price value (0) appears 81 times more frequently than the second most common value 0.99. Now go ahead and remove the features in the nzv vector from apps and store the new version in apps_clean.
+apps_clean <- apps %>% select(-nzv)
+
+```
+
+Removing correlated features
+
+Highly correlated features are often a stumbling block for many Machine Learning models. This also hinders the interpretability of your model. While we cannot guarantee that a model with no correlated features will inevitably lead to better performance, the consensus is that performing this step is generally useful.
+
+The caret package provides a neat function to detect highly correlated features: findCorrelation(). This function expects a pre-calculated correlation matrix (which you can easily get with the cor() function from the stats package) and optionally a cut-off value for the minimum correlation (default is 0.9). Try it out with a subset of the FIFA19 dataset available in your workspace as fifa. As before, the dplyr package is already loaded too.
+
+```{r}
+# Glimpse at the fifa data
+glimpse(fifa)
+
+# Check if you have zero or near-zero variance features in your data.
+nearZeroVar(fifa)
+
+# Use the findCorrelation() function to retrieve the names of the highly correlated features (default cutoff = 0.9). Save the result as cor_90plus.
+# Repeat the above step, this time with cutoff = 0.98. Save the result as cor_98plus.
+# Highly correlated predictors: cor_90plus
+(cor_90plus <- findCorrelation(cor(fifa), names =  TRUE))
+
+# Highly correlated predictors (>= 98%): cor_98plus
+(cor_98plus <- findCorrelation(cor(fifa), names = TRUE, cutoff = 0.98))
+
+# Remove the features in cor90_plus using the appropriate dplyr notation within the select() function. Store your result in fifa_clean.
+fifa_clean <- fifa %>% select(-cor_90plus)
+
+```
+
+PCA to the rescue
+
+Extracting new features from the data could work wonders if your ML model does not look really promising.
+
+You want to classify a soccer player as belonging to either the FC Barcelona or the Real Madrid club based on 34 performance indicators. You trained a linear Support Vector Machine (SVM) on the original data but, alas, its performance was quite low. So you have decided to extract new features via Principal Component Analysis (PCA) and train your SVM on that data instead.
+
+The 66 players in both teams have been evenly split into team_train (50) and team_test (16). Both sets have been centered and scaled. The 5-fold cross validation trainCtrl variable is available in your workspace. The caret and Metrics packages have been pre-loaded.
+
+```{r}
+# Use caret's preProcess() function to create an object named pca that applies PCA to team_train (except the Club column). 
+# Use the pca object to transform both team_train and team_test datasets. Save these versions as train_pca and test_pca.
+pca <- preProcess(x = team_train[, -1], method = 'pca')
+train_pca <- predict(pca, team_train)
+test_pca <- predict(pca, team_test)
+
+# Nice! PCA chose 8 components since they explain 95% of the variance. Now train an "svmLinear" on the PCA-ed training data to predict Club from the other attributes. Use trainCtrl again and name your model mdl_pca.
+mdl_pca <- train(Club ~., data = train_pca, method = "svmLinear", trControl = trainCtrl)
+           
+# Predict class labels and class probabilities using your SVM model on the PCA-ed test data and store these predictions in pca_preds and pca_probs, respectively.
+pca_preds <- predict(mdl_pca, test_pca)
+pca_probs <- predict(mdl_pca, test_pca, type = 'prob')
+
+# Compute the confusion matrix and AUC from the class label predictions and the true labels. Save them as cm_pca and auc_pca variables.
+(cm_pca <- confusionMatrix(pca_preds, test_pca$Club))
+(auc_pca <- auc(test_pca$Club == 'Real.Madrid', 
+                pca_probs$Real.Madrid))
+
+```
+
+LDA to the rescue
+
+Let's pull another feature extraction method from the shelf: Linear Discriminant Analysis (LDA). Since LDA creates linear combinations of the original features to better separate the decision classes, this rationale might prove useful here compared to the unsupervised feature extraction carried out by PCA.
+
+Once again, the centered and scaled team_train and team_test datasets as well as the 5-fold cross validation trainCtrl variable are available in your workspace.
+
+You will be using the lda() implementation from the MASS package, which is already loaded. Beware that the decision variable in the transformed dataset is named class, not Club.
+
+```{r}
+# Call lda() on the team_train data to predict Club from all other features and save it as my_lda. 
+# Use my_lda to apply that transformation to both team_train and team_test sets. Save these versions as train_lda and test_lda.
+my_lda <- lda(Club ~., data = team_train)
+train_lda <- as.data.frame(predict(my_lda, team_train))
+test_lda <- as.data.frame(predict(my_lda, team_test))
+
+# Now train the same "svmLinear" on the LDA-ed training data to predict class from the other attributes. Use trainCtrl again and name your model mdl_lda.
+mdl_lda <- train(class ~ ., data = train_lda, method = "svmLinear", trControl = trainCtrl)
+
+# Predict class labels and class probabilities using your SVM model on the test_lda data and store these predictions in lda_preds and lda_probs, respectively.
+lda_preds <- predict(mdl_lda, test_lda)
+lda_probs <- predict(mdl_lda, test_lda, type='prob')
+
+# Compute the confusion matrix (using the caret package) and AUC (using the Metrics package) from the model's class label predictions and the true labels in test_lda. Save them in the cm_lda and auc_lda variables, respectively.
+(cm_lda <- confusionMatrix(lda_preds, test_lda$class))
+(auc_lda <- auc(test_lda$class == 'Real.Madrid', lda_probs$Real.Madrid))
+
+```
+
+Evaluating classification models
+
+Assessing the performance of your classification model is a crucial skill in a Machine Learning interview. Fortunately, R packages do a lot of the heavy lifting under the hood for you.
+
+In this exercise, you are going to train a K-nearest neighbors (KNN) classifier to discriminate between educational and entertainment apps in the Google Apps store. A reduced version of this dataset is already available in your workspace. The data has been split into 75% training and 25% testing. The caret and Metrics packages have been preloaded. A 10-fold cross-validation caret train control object has been created as well and can be accessed as cv10.
+
+Let's go ahead and evaluate this simple KNN classifier.
+
+```{r}
+# Create a KNN train object in caret to predict the Category of an app in the training data from all other variables. Use the 10-fold cross-validation as the train control and set the evaluation metric to "ROC". Save the result as mdlKNN.
+mdlKNN <- train(Category ~., data = training, method = 'knn', trControl = cv10, metric="ROC")
+
+# Print the KNN model to the console and notice the ROC, sensitivity and specificity values across the cross-validation resamples. Then call the correct function in caret to print the confusion matrix on the resamples from the training data.           
+print(mdlKNN); confusionMatrix(mdlKNN)
+
+# Predict class labels and probabilities on the testing data using the KNN model. Save the results as knn_preds and knn_probs, respectively.
+knn_preds <- predict(mdlKNN, newdata = testing)
+knn_probs <- predict(mdlKNN, newdata = testing, type="prob")
+
+# Find the appropriate functions in the Metrics package to print the accuracy and AUC values on the testing data. Remember that to calculate AUC you need to use the predicted probabilities for the ENTERTAINMENT class.
+print(accuracy(testing$Category, knn_preds))
+print(auc(testing$Category == 'ENTERTAINMENT', knn_probs[, 2]))
+
+```
+
+Evaluating regression models
+
+You are quickly getting the hang of evaluating Machine Learning models in R! Let's switch now to regression models, as these are quite common in Machine Learning interviews.
+
+In this exercise, you are going to train a Support Vector Machine with a Radial Basis Function (RBF) kernel to predict the Overall score of a FIFA soccer player based on four game performance indicators. A simplified version of the FIFA19 dataset containing information about 1,000 players is already available in your workspace. The data has been split into 75% training and 25% testing.
+
+As before, the caret and Metrics packages have been preloaded and a 10-fold cross-validation caret train control object named cv10 has been created too.
+
+Let's go ahead and evaluate the performance of our SVM model.
+
+```{r}
+# Train an SVM with RBF kernel in caret (method name is "svmRadial") to predict the Overall score of a FIFA player from all other variables using the training data and the 10-fold cross-validation object. Save the result as mdlSVM.
+mdlSVM <- train(Overall ~., data = training, method = "svmRadial", trControl = cv10)
+           
+# Print the SVM model to the console and take a look at the regression metric values across all resamples for each candidate value of the C hyperparameter.
+print(mdlSVM)
+
+# Predict overall player score on the testing data using the SVM model. Save the results as svm_preds.
+svm_preds <- predict(mdlSVM, newdata = testing)
+
+# Find the appropriate functions in the Metrics package to print the Root Mean Squared Error (RMSE) and Mean Absolute Error (MAE) values on the testing data. Then print both values to the console.
+print(rmse(testing$Overall, svm_preds))
+print(mae(testing$Overall, svm_preds))
+
+```
+
+Evaluating clustering methods
+
+Clustering results are assessed via both human intuition and validity indices. These indices aim at capturing desirable properties of a clustering, such as its compactness and separation. In a Machine Learning interview, it is important that you apply multiple indices to evaluate the clustering result.
+
+In this exercise, you will use the clValid package to evaluate the clusters produced by the DIvisive ANAlysis (DIANA) hierarchical clustering method using three internal indices: Dunn, Connectivity and Silhouette. You will try with the number of clusters ranging from 2 to 10. DIANA will cluster 200 mall customers categorized by three attributes.
+
+The original data has been pre-processed and is available as mall_scaled. The clValid and dplyr packages are already loaded.
+
+```{r}
+# Glimpse at the mall_scaled data.
+# Run the clValid() function on mall_scaled with the number of clusters ranging from 2 to 10 while implementing the "diana" method and choosing "internal" validation measures. Save the output as results.
+results <- clValid(mall_scaled, 
+           2:10, 
+           clMethods = "diana",
+           validation = "internal")
+
+
+# Print and summarize the results obtained in the previous step.
+print(results)
+summary(results)
+
+# Plot the results to see a chart for every validity index. Click the Previous Plot and Next Plot buttons to browse the charts. The name of the clustering validity index is shown in the y axis.
+plot(results)
+
+```
+
+Checking for class imbalance
+
+Classification problems where one decision class is overrepresented and the other ones are underrepresented can have a detrimental effect on your model fitting. Recognizing when you are in the presence of an imbalanced classification problem is the first step to adequately deal with this issue.
+
+In this exercise, you are going to check whether the pulsar dataset suffers from class imbalance or not. This dataset labels a star as being of a pulsar type or not depending on eight numerical measurements from the star's integrated profile and its DM/SNR curve.
+
+Then, you will proceed to partition the pulsar data into training and test sets. The dplyr and caret packages have been loaded for you.
+
+```{r}
+glimpse(pulsar)
+
+# Count each value of the target_class decision variable in pulsar. Use these counts to determine whether your dataset suffers from class imbalance or not.
+table(pulsar$target_class)
+
+# Set the random seed to 123 and use the appropriate caret function to partition your data into 75% training and 25% test. 
+# Save your vector of training sample indices as inTrain and your datasets as training and testing, respectively.
+et.seed(123)
+inTrain <- createDataPartition(y = pulsar$target_class, p = .75, list = FALSE)
+training <- pulsar[inTrain,]
+testing <- pulsar[-inTrain,]
+
+# Check if you have class imbalance in your training and test sets.
+table(training$target_class)
+table(testing$target_class)
+
+```
+
+Applying subsampling in each resample
+
+As mentioned in the video, the preferred approach to train a model on a class-imbalanced dataset is to deal with the imbalance at each resample of the training data. You can instruct caret to subsample each resample from your training data using the sampling argument in the trainControl() call.
+
+To illustrate the above point, a custom function named trainDTree() has been written for you. This function takes in your training data and the subsampling method you want to apply to it. The function applies said subsampling method to each resample in a 10-fold cross validation of your training data and fits a decision tree to each. Type trainDTree in the console before using it.
+
+```{r}
+# Use the trainDTree() custom function on the training data to learn a decision tree model mdl_orig with no subsampling method applied to any resample in the 10-fold cross validation. Print this model on the same line where it is created.
+
+function(train_data, samplingMode = NULL) {
+  # Set random seed for reproducible results
+  set.seed(123)
+  
+  # Set train control with 10-fold cross-validation
+  ctrl <- trainControl(method = "cv", number = 10,
+                       classProbs = TRUE,
+                       summaryFunction = twoClassSummary,
+                       # Set sampling method
+                       sampling = samplingMode)
+  
+  # Train model on data with target variable and ROC metric
+  train(target_class ~ ., data = train_data,
+        method = "rpart", metric = "ROC", trControl = ctrl)
+}
+
+# Train and print model with no subsampling: mdl_orig
+(mdl_orig <- trainDTree(training))
+
+# Apply downsampling to each fold (resample) in the 10-fold CV of your training data by passing "down" as the sampling mode in the call to the trainDTree() function. Call this model mdl_down.
+(mdl_down <- trainDTree(training, samplingMode = "down"))
+
+# Apply upsampling to each fold (resample) in the 10-fold CV of your training data by passing "up" as the sampling mode in the call to the trainDTree() function. Call this model mdl_up.
+(mdl_up <- trainDTree(training, samplingMode = "up"))
+
+# Apply SMOTE to each fold (resample) in the 10-fold CV of your training data by passing "smote" as the sampling mode in the call to the trainDTree() function. Call this model mdl_smote.
+(mdl_smote <- trainDTree(training, samplingMode = "smote"))
+
+```
+
+Evaluating model performance
+
+Now that you have actively considered the class imbalance in your data by applying subsampling methods to each fold (resample) in your cross-validated training data, it is time to evaluate these models and see if all your efforts were worth anything.
+
+A custom function named get_auc() has been written for you. This function calculates the Area Under the ROC Curve (AUC) metric for a given model tested on a pulsar star dataset. Type get_auc in the console to check it out.
+
+We will use this function to assess the AUC produced by four models on the testing data.
+
+The four models mdl_orig, mdl_down, mdl_up and mdl_smote are already loaded for you, as well as the caret package.
+
+```{r}
+function(model, data) {
+  library(Metrics)
+  
+  # Predict class probabilities on the test data
+  preds <- predict(model, data, type = "prob")[, "yes"]
+  
+  # Calculate and return AUC value
+  auc(data$target_class == "yes", preds)
+  }
+  
+# Gather the four decision tree models you created into a list called mdl_list. These models have been preloaded for you as indicated in the instructions.
+ mdl_list <- list(orig = mdl_orig,
+                 down = mdl_down,
+                 up = mdl_up,
+                 smote = mdl_smote)
+ 
+# Extract the training resamples all decision tree models in mdl_list were trained on. Check for the appropriate caret function. Save the resamples in the resampling variable.
+# Summarize each model's AUC summary across the different resamples.
+resampling <- resamples(mdl_list)
+summary(resampling, metric = "ROC")
+
+# Apply the get_auc() custom function to each model in the list on the testing data to compute the AUC. Store these results in auc_values, then print them to the console.
+auc_values <- sapply(testing, get_auc, data = resampling)
+print(auc_values)
+
+
+```
+
+Hyperparameter Tuning
+
+Default grid search in caret
+
+The caret package provides over 200 available models, many of which have hyperparameters to tune. The modelLookup() function takes a model name as input and returns its hyperparameter list.
+
+By default, any train() object in caret has its hyperparameters tuned via grid search. caret chooses three values per hyperparameter, although some hyperparameters could be held constant. The candidate hyperparameter vector that optimizes accuracy (for classification) or RMSE (for regression) is then chosen to build the finalModel.
+
+Let's try caret's default grid search to tune an SVM model used to predict car fuel consumption. caret and dplyr have been loaded and the car_train dataset is available in your workspace.
+
+```{r}
+# Q Glimpse at the car_train dataset to familiarize yourself with its structure. Then call modelLookup() passing "svmRadial" as input argument to find out how many hyperparameters, if any, need to be tuned for this model.
+# A the sigma and C hyperparameters.
+
+# Create a trainControl() object named trc corresponding to 5 repeats of a 3-fold cross validation (method = "repeatedcv").
+trc <- trainControl(method = "repeatedcv", 
+           number = 3, 
+           repeats = 5)
+
+#Train a Support Vector Machine with Radial Basis Function kernel ("svmRadial") on car_train to predict fuel consumption (consume) from all other variables. Remember to use the train control object you created. Save the result as svmr.
+svmr <- train(consume ~., 
+           data = car_train,
+           method = 'svmRadial', 
+           trControl = trc)
+
+# Now print and plot the caret train object created in the previous step and take note of the hyperparameter grid search that took place behind the scenes.
+print(svmr)
+plot(svmr)
+
+
+```
+
+Customizing the grid search
+
+In the previous exercise you conducted a default grid search to optimize the C and sigma hyperparameters of your SVM radial model. Although quite easy to do, it was a pity that you did not have any control over the candidate hyperparameter vectors that were tried during the grid search.
+
+But that's about to change! You will be using the expand.grid() function provided by caret to specify the set of values for each hyperparameter. Then, the grid search will be carried out over the Cartesian product of each of those sets. You can then use the resulting hyperparameter grid in a call to the train() function by means of the tuneGrid argument.
+
+Let's go ahead and try that! As before, the caret package has been loaded and the car_train dataset is available in your workspace.
+
+```{r}
+# Create a train control object named trc corresponding to a single 10-fold cross validation.
+trc <- trainControl(method = "cv", number = 10)
+
+# Create hp_grid as your customized hyperparameter grid using the expand.grid() caret function. Generate a sequence of values for C from 0.2 to 1.0 in increments of 0.2. For sigma, try the values 0.35, 0.6 and 0.75.
+hp_grid <- expand.grid(C = seq(from=0.2, to=1, by=0.2), sigma = c(0.35, 0.6, 0.75))
+
+# Train an "svmRadial" model on car_train to predict fuel consumption (consume) from all other variables. Plug the appropriate values in the trControl and tuneGrid input arguments. Save the result as svmr, then print it and plot it.
+svmr <- train(consume ~., 
+           data = car_train, method = "svmRadial", 
+           trControl = trc, tuneGrid = hp_grid)
+
+# Print and plot SVM model
+print(svmr)
+plot(svmr)
+
+# QNow examine the results of the hyperparameter tuning conducted via your custom grid search. How many candidate hyperparameter vectors were tried and which one performed best?
+# A 15 vectors; winner was C=1.0 and sigma=0.35
+
+```
+
+Random search
+
+As discussed before, grid search can become slow and compute-intensive fairly quickly as the number of hyperparameters and their sets of candidate values increases. To tackle this issue, you will conduct a random search instead.
+
+In a random search you let caret sample from the range/set of values a hyperparameter can take. This means that so far, you cannot specify your own custom hyperparameter values as was done in the previous exercise. Despite this limitation, random search performs quite well in general and is very easy to implement: simply specify search="random" in your training specs and tuneLength=X in your train() call, where X is the number of candidate hyperparameter vectors to consider.
+
+Again, caret is loaded and the car_train dataset is also available.
+
+```{r}
+# Set the random seed to 42. Then create a train control object named trc corresponding to a single 10-fold cross validation and conduct a random hyperparameter search by specifying search="random".
+trc <- trainControl(method = "cv", 
+           number = 10, search = "random")
+
+# Train an "svmRadial" model on car_train to predict fuel consumption (consume) from all other variables. Use the train control specs and draw 10 random hyperparameter vectors (tuneLength = 10). Save the result as svmr.
+svmr <- train(consume ~., 
+           data = car_train, method = "svmRadial", 
+           trControl = trc, tuneLength = 10)
+
+print(svmr)
+plot(svmr)
+
+# Q Now examine the results of the hyperparameter tuning conducted via random search. How many candidate hyperparameter vectors were tried and which one performed best?
+# A 10 vectors; winner was C=1.844 and sigma=1.553
+
+```
+
+Random Forests or Gradient Boosted Trees
+
+The Random Forest model
+
+Comparing the performance of multiple Machine Learning models on the same dataset is an important step towards deciding which one meets your business goals more closely.
+
+In this series of exercises, you are going to see both Random Forests (RFs) and Gradient Boosted Trees (GBTs) in action! You will be predicting the rating of a Google Play app based on its category, number of user reviews, size (in megabytes) of the app file, number of installs and content type.
+
+A simplified version of the Google Play apps dataset has been already split into 75% training and 25% testing for you. Will RFs beat GBTs on this dataset? You will find out soon enough!
+
+```{r}
+# Load the randomForest package, then fit a Random Forest model with 500 trees to the training dataset to predict Rating using all other variables. Name this model mdlRF.
+library(randomForest)
+
+mdlRF <- randomForest(formula = Rating ~ .,
+                      data = training,
+                      ntree = 500)
+print(mdlRF)
+
+# Call the appropriate function in the randomForest package to display the variable importance plot induced by your RF model. Then find the variable importance attribute in your RF model and print it to the console.
+varImpPlot(mdlRF)
+print(mdlRF$importance)
+
+# Q Nice! Which two features does Random Forests assign the highest importance to predict the rating of a Google Play app?
+# A Reviews and Size
+
+```
+
+The GBM model
+
+In the previous exercise, you trained a Random Forest model on a simplified version of the Google Play apps dataset. Now, it's Generalized Boosted Regression Modeling (GBM)'s turn!
+
+The dataset has been already split into 75% training and 25% testing for you.
+
+```{r}
+# Load the gbm package, then fit a GBM model with 500 trees to the training data in order to predict Rating from all other variables. Store the result in the mdlGBM variable.
+
+library(gbm)
+
+mdlGBM <- gbm(formula = Rating ~ .,
+              data = training,
+              n.trees = 500)
+
+print(mdlGBM)
+
+# Print the summary of your GBM model. This will both print the variable importance to the console and generate the corresponding plot.
+summary(mdlGBM)
+
+# Q That was a job well done! Take a look at the relative variable importance plot induced by your GBM model. Remember that the RF model deemed Reviews and Size as the two most significant variables. Does GBM agree with this conclusion?
+# A Yes, partially. - reviews, installs
+
+```
+
+Evaluating GBM and RF predictions on test data
+
+Now that you have trained a GBM and an RF model, both with 500 trees, on the Google Apps Store data, it is time to check which ensemble model does a better job at predicting the rating of an app more accurately.
+
+Our evaluation will center around two common metrics for regression problems: Root Mean Squared Error (RMSE) and Root Relative Squared Error (RRSE). Both metrics can be computed through the rmse() and rrse() functions in the Metrics package.
+
+Both pre-trained ensemble models are available in your workspace as the mdlGBM and mdlRF variables. The testing data from Google Apps dataset is also loaded.
+
+```{r}
+# Predict the app rating on the testing data using both ensemble models. Specify 500 trees for the GBM call. Call these predictions gbm_preds and rf_preds, respectively.
+library(Metrics)
+
+gbm_preds <- predict(mdlGBM, n.trees = 500, newdata = testing)
+rf_preds <- predict(mdlRF, newdata = testing)
+
+# Calculate and print (on the same line) the RMSE for both ensemble models given their predictions. Name these variables gbm_rmse and rf_rmse, respectively.
+(gbm_rmse <- rmse(testing$Rating, gbm_preds))
+(rf_rmse <- rmse(testing$Rating, rf_preds))
+
+# Calculate and print (on the same line) the RRSE for both ensemble models given their predictions. Save the results as gbm_rrse and rf_rrse, respectively.
+(gbm_rrse <- rrse(testing$Rating, gbm_preds))
+(rf_rrse <- rrse(testing$Rating, rf_preds))
+
+# Q Print the results data frame to the console. Which model predicted app ratings more accurately?
+# A RF beat GBM by a small margin (1-3%).
+
+```
+
+
+
+
+
+
+
+
+

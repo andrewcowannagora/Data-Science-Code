@@ -1,0 +1,120 @@
+---
+title: "FizzBuzz"
+author: "Andrew Cowan-Nagora"
+date: "05/01/2020"
+output: html_document
+---
+
+```{r}
+
+for (i in 1:21) {
+  
+  if(i%%3 == 0 & i%%5 == 0) {
+    print('FizzBuzz')
+  }
+  else if(i%%3 == 0) {
+    print('Fizz')
+  }
+  else if (i%%5 == 0){
+    print('Buzz')
+  }
+  else {
+    print(i)
+  }
+  
+}
+
+```
+
+```{r}
+
+# define the function
+fizz_buzz <- function(number_sequence_f){
+  if(number_sequence_f%%3 == 0 & number_sequence_f%%5 == 0) {
+    print('FizzBuzz')
+  }
+  else if(number_sequence_f%%3 == 0) {
+    print('Fizz')
+  }
+  else if (number_sequence_f%%5 == 0){
+    print('Buzz')
+  }
+  else {
+    print(number_sequence_f)
+  }
+  
+}
+
+# apply it to the numbers 1 to 100
+sapply(seq(from = 1, to = 100, by = 1), fizz_buzz)
+
+```
+
+```{r}
+how can a data scientist partner with stakeholders to develop an analytical solution that answers a business problem while avoiding unnecessary complexity?
+
+A) analytical maturity to know what numerical solutions are likely to give a reasonable solution with the available data   
+B) business sense to understand the stakeholder problem and translate it into a form that allows a data science solution
+C) a combination of A and B (analytical wisdom and business sense) to identify the use cases for which analytics will have the largest business impact.
+
+```
+
+```{r}
+
+for i in range(1,101):
+    if (i % 3 == 0) & (i % 5 == 0):
+        print('FizzBuzz')
+    elif (i % 3 == 0):
+        print('Fizz')
+    elif (i % 5 == 0):
+        print('Buzz')
+    else:
+        print(i)
+
+```
+
+```{r}
+# import the pandas library
+import pandas as pd
+
+# define the function
+def fizz_buzz(number_sequence_f):
+    if (number_sequence_f % 3 == 0) & (number_sequence_f % 5 == 0):
+        return('FizzBuzz')
+    elif (number_sequence_f % 3 == 0):
+        return('Fizz')
+    elif (number_sequence_f % 5 == 0):
+        return('Buzz')
+    else:
+        return(number_sequence_f)
+
+# apply it to the number series
+pd.Series(np.arange(1,101)).apply(fizz_buzz)
+
+```
+
+```{r}
+for (i in 1:21) {
+  if (i %% 3 == 0 & i %% 5 == 0) {
+    print("fizzbuzz")
+  }
+  else if (i %% 3 == 0) {
+    print("fizz")
+  }
+  else if (i %% 5 == 0) {
+    print("buzz")
+  }
+  else {
+    print(i)
+  }
+}
+
+
+```
+```{r}
+barplot(sample(1:6, 200, replace = TRUE))
+
+```
+
+args(rbinom)
+

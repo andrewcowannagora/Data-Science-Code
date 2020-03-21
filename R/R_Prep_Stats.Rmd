@@ -1,0 +1,990 @@
+---
+title: "Stats Prep: R"
+author: "Andrew Cowan-Nagora"
+date: "04/01/2020"
+output: pdf_document
+---
+
+1) Discrete Dsitributions
+
+Bernoulli trials
+
+A Bernoulli trial is a random experiment with two possible outcomes: success and failure. The interviewer might ask you to simulate a set of Bernoulli trials in R.
+
+In this example, you will imitate the shots of three basketball players with various skill levels. Let's assume that the value 1 represents a goal and the value 0 a miss. The outcomes of the shots might be presented as a vector. For example, the vector c(1, 1, 0) means that the player has scored twice and then missed once.
+
+The seed has been set to ensure reproducibility.
+
+```{r}
+set.seed(123)
+
+# Generate the random results of 10 shots and draw their frequency chart for the player with a goal probability of 0.5
+shots <- rbinom(n = 10, size = 1, prob = 0.3)
+print(shots)
+
+# Draw the frequency chart of the results
+barplot(table(shots))
+
+# Generate the random results of 10 shots and draw their frequency chart for the player with a goal probability of 0.3.
+shots <- rbinom(n = 10, size = 1, prob = 0.9)
+print(shots)
+
+# Draw the frequency chart of the results
+barplot(table(shots))
+
+# Generate the random results of 10 shots and draw their frequency chart for the player with a goal probability of 0.9.
+shots <- rbinom(n = 10, size = 1, prob = 0.5)
+print(shots)
+
+# Draw the frequency chart of the results
+barplot(table(shots))
+
+
+
+```
+
+Binomial distribution
+
+In the previous exercise, you've modeled the Bernoulli trials. The binomial distribution is the sum of the number of successful outcomes in a set of Bernoulli trials.
+
+For this exercise, consider 10 consecutive fair coin flips. You've bet for tails and consider this outcome of a coin flip as a success.
+
+Assume that each coin flip is an independent event.
+
+```{r}
+# The probability of getting 6 tails
+
+six_tails <- dbinom(x = 6, size = 10, prob = 0.5)
+print(six_tails)
+
+# The probability of getting 7 or less tails
+seven_or_less <- pbinom(q = 7, size = 10, prob = 0.5)
+print(seven_or_less)
+
+# The probability of getting 5 or more tails
+five_or_more <- 1 - pbinom(q = 4, size = 10, prob = 0.5)
+print(five_or_more)
+
+
+```
+
+2) Continous Dsitributions
+
+Uniform distribution
+
+Questions related to the continuous uniform distribution come up during interviews because the calculations associated with this distribution are relatively straightforward.
+
+The density function of a continuous uniform distribution is a horizontal line on a given range.
+
+As for all distributions, the area under the density function sums up to 1
+
+. The probability that a random variable falls into a given range is determined by the area under the density function in this range.
+
+A random variable is usually denoted as X
+and a continuous uniform distribution on a range [a,b] is denoted as U(a,b).
+
+```{r}
+
+# Calculate P(X<7) if X∼U(1,10) and save it as lower_than_seven.
+# Probability that X is lower than 7
+lower_than_seven <- punif(q = 7, min = 1, max = 10) 
+print(lower_than_seven)
+
+# Calculate P(X≤4) if X∼U(1,10) and save it as four_or_lower.
+# Probability that X is lower or equal to 4
+four_or_lower <- punif(q = 4, min = 1, max = 10) 
+print(four_or_lower)
+
+# Calculate P(4≤X<7) if X∼U(1,10) and save it as between_four_and_seven.
+# Probability that X falls into the range [4, 7]
+between_four_and_seven <- lower_than_seven - four_or_lower
+print(between_four_and_seven)
+
+
+```
+
+Shape of normal distribution
+
+All normal distributions are symmetric and have a bell-shaped density curve with a single peak.
+
+The normal distribution takes two parameters: the mean (μ) and the variance (σ2). The notation of the normal distribution is N(μ,σ2).
+
+The mean indicates where the peak of the density curve occurs, and the variance indicates the spread of the bell curve. The standard deviation is the square root of variance.
+
+We will review descriptive statistics in detail in the next chapter.
+
+In this exercise, you will draw the density curves. The plot() function with the parameter type set to "l" draws a linear curve. The lines() function adds another curve to the existing graph.
+
+```{r}
+# Create a sequence of numbers from -6 to 6 by 0.01 and assign it to x_values.
+x_values <- seq(from = -6, to = 6, by = 0.01)
+
+# Plot a density function on x_values for the N(0,1).
+plot(x = x_values, y = dnorm(x = x_values), type = "l")
+
+# Add a red density function for the N(1,1).
+lines(x = x_values, y = dnorm(x = x_values, mean = 1, sd = 1), col = "red")
+
+# Add a blue density function for the N(0,4).
+lines(x = x_values, y = dnorm(x = x_values, mean = 0, sd = 2), col = "blue")
+
+```
+
+
+Sample from normal distribution
+
+The normal, or Gaussian, distribution is a frequent topic during interviews due to the vast applications of this distribution.
+
+In this exercise, you'll draw a random sample from a normally distributed population.
+
+A random sample is a set of observed items from the whole population. We can make inferences about the population based on a random sample taken from the population.
+
+```{r}
+# Generate 1000 data points from the standard normal distribution. 
+data <- rnorm(n = 1000)
+
+# Draw a histogram of the generated data points.
+hist(data)
+
+# Calculate the mean of the sample.
+mean(data)
+
+# Compute the true probability that the random variable from N(0,1) is greater than 2.
+1 - pnorm(q = 2)
+
+# Compute the probability that an observation from the generated sample, data, is greater than 2.
+sum(data > 2)/ length(data)
+
+```
+
+
+Law of large numbers
+
+In this exercise, you will simulate rolling a standard die numbered 1 through 6.
+
+Simulation of die rolling can be performed using the sample() function. If you take a sample whose size is bigger than the number of possible values, you need to set the replace parameter of the sample() function to TRUE.
+
+The law of large numbers states that the average of the results obtained from trials will tend to become closer to the expected value as more trials are performed.
+
+```{r}
+# What is the expected value for a die roll?
+# 3.5
+
+# Generate a sample of 20 die rolls and assign the result tosmall_sample.
+small_sample <- sample(1:6, size = 20, replace = TRUE)
+
+# Calculate the mean of the small_sample.
+mean(small_sample)
+
+# Generate a sample of 1000 die rolls and assign the result to big_sample.
+big_sample <- sample(1:6, size = 1000, replace = TRUE)
+
+#Compute the mean of the big_sample.
+mean(big_sample)
+
+```
+
+Simulating central limit theorem
+
+In this exercise, you will practice the central limit theorem (CLT for short).
+
+CLT implies that we can apply statistical methods that work for normal distributions to problems involving other types of distributions. Interviewers are eager to check your understanding of CLT, especially if your future position involves A/B testing.
+
+You will show the mechanics behind CLT on the example of die rolls. A classic die returns a number from 1 to 6.
+
+The die_outputs and mean_die_outputs vectors have already been initialized as empty vectors for you to fill in.
+
+```{r}
+# Generate a random number 1000 times from the range 1 to 6 and assign them to the die_outputs vector.
+die_outputs = c()
+
+for (i in 1:1000) {
+    die_outputs[i] <- sample(1:6, size = 1)
+}
+
+# Draw a bar chart to visualize the number of occurrences of each outcome.
+barplot(table(die_outputs))
+
+
+
+# Generate 30 die rolls 1000 times. Calculate means for each set of outputs and assign them to the mean_die_outputs vector.
+mean_die_outputs = c()
+
+for (i in 1:1000) {
+    mean_die_outputs[i] <- mean(sample(1:6, size = 30, replace = TRUE))
+}
+
+# Plot the histogram of means for each set of 30 die rolls.
+hist(mean_die_outputs)
+
+```
+
+
+Centrality measures
+
+The primary purpose of descriptive statistics is to provide a summary of the data. Descriptive statistics might prove useful if you need to quickly get a grasp of the data at hand during the interview.
+
+The most recognized types of descriptive statistics are measures of central tendency. Measures of central tendency are also known as centrality measures.
+
+In this exercise, you will work with the cats dataset from the MASS package. The cats dataset contains data on the sex, body weight, and heart weight of domestic cats.
+
+By calculating central tendency measures, you'll be able to answer questions about the skewness of the data.
+
+The dataset has been preloaded for you and assigned to the cats variable.
+
+```{r}
+library(MASS)
+
+# Calculate the mean of the Hwt variable from the cats dataset.
+mean(cats$Hwt)
+
+# Calculate the median of the Hwt variable from the cats dataset.
+median(cats$Hwt)
+
+# Draw a histogram of the Hwt variable from the cats dataset. Left Skewed
+hist(cats$Hwt)
+
+```
+
+
+Variability measures
+
+Measures of central tendency represent the center point of values in a dataset. Measures of variability represent the extent to which a distribution is stretched or squeezed.
+
+The measures of variability give you a fuller picture of the data at hand during the interview. The most popular measures of variability are variance and standard deviation.
+
+In this exercise, you will once again work with the cats dataset from the MASS package. The dataset has been preloaded for you as cats.
+
+The dataset contains information on the sex, heart weight, and body weight of domestic cats. The value F in the Sex column indicates a female cat, and the value M indicates a male cat.
+
+```{r}
+
+# Subset data for female cats from the cats dataset and assign them to the female_cats variable.
+female_cats <- subset(cats, Sex == "F")
+
+# Compute the variance of Bwt for females
+var(female_cats$Bwt)
+
+# Subset data for male cats and assign them to the male_cats variable.
+male_cats <- subset(cats, Sex == 'M')
+
+# Compute the variance of Bwt for males
+var(male_cats$Bwt)
+
+
+```
+
+Survey analysis
+
+A categorical variable is a variable that can take on one of a limited number of possible values.
+
+Let's practice wrangling categorical data before your interview on the survey dataset from the MASS package.
+
+The survey dataset contains responses of statistics students to several questions. One of the questions concerns how often the students exercise. The answers to this question are stored in the Exer column. The students could choose one of the following responses: Freq (frequently), Some, and None.
+
+Recall that tapply() applies a function to each group of values within categories.
+
+The survey dataset has been pre-loaded for you and is stored in the survey variable.
+
+```{r}
+library(MASS)
+
+# Compute the structure of Exer from the survey dataset; are the data ordered?
+str(survey$Exer)
+
+# Add an ordered factor based on Exer to the survey dataset.
+survey$Exer_ordered <- factor(survey$Exer, levels = c("None", "Some", "Freq"), ordered = TRUE)
+
+# Compute the structure of Exer_ordered.
+str(survey$Exer_ordered)
+
+# Build a contingency table for Exer_ordered from the survey dataset.
+table(survey$Exer_ordered)
+
+# Calculate the average Pulse for students who exercise none, some and frequently.
+tapply(survey$Pulse, survey$Exer_ordered, mean, na.rm = TRUE)
+
+```
+
+Data encoding
+
+Encoding of categorical data makes them useful for machine learning algorithms. R encodes factors internally, but encoding is necessary for the development of your own models.
+
+In this exercise, you'll first build a linear model with the lm() function and then develop your own model step-by-step. We will review linear models in more detail in the next chapter.
+
+For one hot encoding, you can use dummyVars() from the caret package.
+
+To use it, first create the encoder, e.g.: encoder <- dummyVars(~ category, data = data).
+
+Then transform the dataset: predict(encoder, newdata = data).
+
+You will once again work with the survey dataset from the MASS package. The complete cases of the data are available as survey. The caret package has been already loaded.
+
+```{r}
+library(caret)
+
+# Fit a linear model that predicts Pulse by Exer using survey data; what are the model's coefficients?
+lm(Pulse ~ Exer, data = survey)
+
+# Create one hot encoder for the Exer column.
+encoder <- dummyVars(~ Exer, data = survey)
+
+# Assign the one hot labels to Exer_encoded
+Exer_encoded <- predict(encoder, newdata = survey)
+
+# Use cbind() to create a matrix. The matrix should consist of 1's in the first column. The second and the third column should be the same as in Exer_encoded.
+X <- cbind(1, Exer_encoded[, 2:3])
+
+# Run the formula for the coefficients' calculation.
+solve((t(X)%*%X))%*%t(X)%*%survey$Pulse
+
+```
+
+Time series object
+
+A time series consists of a set of dates and corresponding values.
+
+Many companies gather time-dependent data to look for trends or seasonal variations. As time is irregular, wrangling time-dependent data might be hard, especially in a stressful setting, such as a job interview.
+
+Coercing data to a time series object makes it easier to analyze such datasets.
+
+In this exercise, you will work with natural gas prices. A dataset gas is available in your environment. The dataset contains two variables: Date and Price.
+
+To wrangle the time-dependent data in this exercise, use the functions from the xts package. Remember that an index of an xts object needs to be of a time-based class.
+
+```{r}
+library(xts)
+
+# Display the structure of the gas dataset; what class is the Date column?
+str(gas)
+
+# Coerce the Date column to a date class.
+gas$Date <- as.Date(gas$Date)
+
+# Create an xts object from the gas dataset and assign it to the gas_ts variable.
+gas_ts <- xts(x = gas$Price, order.by = gas$Date)
+
+# Plot the price of gas over time.
+plot(gas_ts)
+
+```
+
+Wrangling time series
+
+In the last exercise, you created an xts object of gas prices. In this exercise, you will take a closer look at the year 2014.
+
+Remember that the seq() function can be used for dates.
+
+The xts package contains a set of functions that apply a function to non-overlapping periods, e.g., weekly, monthly, etc.
+
+The gas_ts object is available in the environment.
+
+```{r}
+# Create a vector with a sequence of dates for each day of the year 2014 and assign it to dates.
+dates <- seq(from = as.Date("2014-01-01"), to = as.Date("2014-12-31"), by = "1 day")
+
+# Create a subset of gas_ts for the year 2014.
+gas_2014 <- gas_ts[dates]
+
+# Plot the time series for the year 2014.
+plot(gas_2014)
+
+# Compute the monthly means of gas prices.
+apply.monthly(gas_2014, mean)
+
+```
+
+PCA - rotation
+
+You will perform Principal Component Analysis using the cats dataset that you have already encountered in the previous exercises.
+
+You may expect questions on PCA during the interview if your future role involves handling vast amounts of data.
+
+PCA allows you to reduce the number of dimensions in a dataset, which speeds up calculation time without significant loss of informational value.
+
+In this exercise, use prcomp() to derive the results.
+
+```{r}
+# Draw a scatterplot of Bwt and Hwt from the cats dataset.
+plot(Bwt ~ Hwt, data = cats)
+
+# Perform PCA on Bwt and Hwt from the cats dataset.
+pca_cats <- prcomp(~ Bwt + Hwt, data = cats)
+
+# Derive the summary of the PCA.
+summary(pca_cats)
+
+# Rotate the data to the principal components.
+principal_components <- predict(pca_cats)
+
+# Draw a scatterplot of the rotated data.
+plot(principal_components)
+
+# first principal component explains 98.7% of the variance.
+# Pros
+# 1. Removes Correlated Features, 2. Improves Algorithm Performance, Reduces Overfitting, Improves Visualization
+# Cons
+# 1. Independent variables become less interpretable, 2. Data standardization is must before PCA, 3. Information Loss
+
+```
+
+PCA - dimension reduction
+
+In the previous exercise, you worked on a dataset with two variables. Companies usually gather lots of data, so you are likely to face a bigger dataset during an interview.
+
+The Letter Recognition dataset has been created based on images of letters. Each row represents a letter and its numerical attributes.
+
+The dataset has been preloaded as letter_recognition.
+
+This dataset is usually used for prediction models. The lettr is a response variable, and the rest are explanatory variables.
+
+Reduce the number of dimensions using the function from the stats package with the best accuracy.
+
+```{r}
+library(stats)
+
+# Identify the principal components and show the proportion of variance captured by each of them.
+pca_letters <- prcomp(letter_recognition[, -1])
+summary(pca_letters)
+
+# Omit components for which the standard deviation is lower than 0.25 of the first component's standard deviation.
+pca_letters <- prcomp(letter_recognition[, -1], tol = 0.25)
+summary(pca_letters)
+
+# Limit the number of principal components to 7.
+pca_letters <- prcomp(letter_recognition[, -1], rank = 7)
+summary(pca_letters)
+
+```
+
+Normality
+
+Shapiro-Wilk test
+
+In this exercise, you will check the normality of data.
+
+Normal data is an underlying assumption for many statistical tests. You need to know how to assess the normality of the data before you run these statistical tests during the interview.
+
+You will use the cats dataset from the MASS package, which has been preloaded as cats for you. You will work with the Hwt variable from this dataset, which contains data on heart weight in grams.
+
+```{r}
+# Plot a histogram of the Hwt variable.
+hist(cats$Hwt)
+
+# Perform the normality test that has the best power for a given significance on the Hwt variable.
+shapiro.test(cats$Hwt)
+# You reject the null hypothesis because the p-value amounts to 0.0003654.
+
+# Determine the shape of the logarithm of Hwt distribution.
+hist(log(cats$Hwt))
+
+# Perform the normality test that has the best power for a given significance on the logarithm of the Hwt variable.
+shapiro.test(log(cats$Hwt))
+# You cannot reject the null hypothesis because the p-value amounts to 0.8333
+# The p-value is greater than 5%. Hence there is no evidence to reject the null hypothesis that the sample comes from a population that has a normal distribution. The bell-shaped histogram supports this hypothesis. During the interview, keep in mind that there is still a risk of type II error. 
+
+```
+
+Q-Q plot
+
+During the interview, you can use a Q-Q plot to support the result of the Shapiro-Wilk test.
+
+A Q-Q plot that compares a certain sample data against the values of a normal distribution helps to assess the normality of the sample visually.
+
+You will practice drawing Q-Q plots on the cats dataset from the MASS package, which is available in the environment as cats.
+
+```{r}
+# Q-Q plot 
+# A point on the plot corresponds to one of the quantiles of the second distribution plotted against the same quantile of the first distribution.
+# A Q-Q plot is a graphical method for comparing two probability distributions by plotting their quantiles against each other.
+# If the two distributions being compared are similar, the points will approximately lie on the line.
+
+# Draw a normal Q-Q plot for the Hwt variable from the cats data frame.
+qqnorm(cats$Hwt)
+# Add a reference line to the plot.
+qqline(cats$Hwt)
+
+# Draw a normal Q-Q plot for the logarithm of the Hwt variable from the cats data frame.
+qqnorm(log(cats$Hwt))
+# Add a reference line to the plot.
+qqline(log(cats$Hwt))
+
+```
+
+Confidence interval
+
+The confidence interval is a range in which we suspect the population's mean to land.
+
+You may expect questions on confidence intervals if your future project touches behavioral or medical science, politics, or advertising.
+
+A confidence interval depends on the confidence level. A confidence interval is stored in the conf.int component of an object created with t.test().
+
+In this exercise, you'll practice computing confidence intervals using the sleep dataset from the datasets package. The sleep dataset contains data on the effect of two drugs on ten patients. The dataset is stored in the sleep variable.
+
+The effect is measured as an increase in hours of sleep compared to control. The increase in hours of sleep is stored in the extra column.
+
+```{r}
+library(datasets)
+# Q If we increase the confidence level, how does the confidence interval change?
+# A The confidence interval widens.
+
+# Run the Shapiro-Wilk test on the extra variable from the sleep data frame; is the null hypothesis rejected?
+shapiro.test(sleep$extra)
+# You cannot reject the null hypothesis because the p-value amounts to 0.3114
+
+# Calculate the mean of extra for the sample data.
+mean(sleep$extra)
+
+# Compute a confidence interval for the default confidence level of 95%.
+t.test(sleep$extra)$conf.int
+
+# Compute a confidence interval for the confidence level 90%.
+t.test(sleep$extra, conf.level = 0.9)$conf.int
+
+# Compute a confidence interval for the confidence level 99%.
+t.test(sleep$extra, conf.level = 0.99)$conf.int
+
+# Awesome! Even though the sample's mean amounts to 1.54, the population's mean might be somewhere between 0.60 and 2.48 with 95% confidence. Showing that you can build confidence intervals instead of trusting only the sample's mean puts you in a great position during the interview. 
+
+```
+
+One-sample t-test
+
+In the last exercise, you used the t.test() function to derive a confidence interval. In this exercise, you will use the t.test() function to test if the population's mean amounts to a specific value.
+
+You can get asked about the one-sample t-test if your future role involves testing a sample against a specific benchmark.
+
+In this exercise, you will once again work with a sleep dataset from the datasets package. The dataset has been pre-loaded as sleep for you. The group column indicates which drug has been given to a patient.
+
+```{r}
+# Q What is the null hypothesis of the one-sample t-test?
+# A The population's mean equals the hypothesized mean.
+
+# Subset the observations of group 1, 2.
+group1 <- subset(sleep, group == 1)
+group2 <- subset(sleep, group == 2)
+
+# Perform a one-sample t-test to check if the population's mean of extra for group 1,2 equals 2.2.
+t.test(group1$extra, mu = 2.2)
+t.test(group2$extra, mu = 2.2)
+
+# Well done! The tests show that you would reject the null hypothesis that the population's mean amounts to 2.2 for the first group, but not for the second. You may encounter such a task during an interview for a company that makes inferences about a population.
+# < 0.05 = reject null
+# > 0.05 = do not reject null
+
+```
+
+Two-sample t-test
+
+A two-sample t-test is used to test if the means of two populations equal.
+
+Does the company you are applying for quantify the impact of a factor? You are likely to get asked about the two-sample t-test during the interview.
+
+The examples of analyses that quantify the impact of a factor include testing a new pharmaceutical drug on patients or a new marketing campaign on demand.
+
+A company provided you with the df data frame. The sample column indicates the sample, and the value column contains numerical data. The df data frame is available in your environment.
+
+Recall that few assumptions need to be met to carry out a t-test.
+
+```{r}
+# Run the Shapiro-Wilk test on the first/second sample.
+shapiro.test(df$value[df$sample == 1])
+shapiro.test(df$value[df$sample == 2])
+
+# Perform the Bartlett's test on the two samples.
+bartlett.test(value ~ sample, data = df)
+
+# Q What can you derive from the Shapiro-Wilk and Bartlett's tests?
+# A There is no evidence to reject the hypothesis that the underlying data comes from the normally distributed populations, nor that the variances are equal.
+
+# Carry out a two-sample t-test on the data samples; what is the result of the analysis?
+t.test(value ~ sample, data = df, var.equal = TRUE)
+# You've proved that the means of the two populations differ.
+
+```
+
+Paired test
+
+In the previous lesson, you've worked on the sleep dataset. The dataset contains data on the effect of two drugs on the increase in sleep hours.
+
+In the case of this experiment, the data are pairs of measurements. The same people were tested with each of the drugs. If data contain pairs of measurements, you should use a paired test. It is worth keeping this distinction in mind during the interview.
+
+To carry out a paired test, set the paired parameter of the t.test() function to TRUE.
+
+The dataset is available as sleep in your environment. Recall that extra is the increase in the number of sleep hours, and group indicates which drug has been given.
+
+```{r}
+# Assign the increase in the sleep hours of the first group to drug1,2.
+drug1 <- sleep$extra[sleep$group == 1]
+drug2 <- sleep$extra[sleep$group == 2]
+
+# Carry out a paired test for drug1 and drug2.
+t.test(drug1, drug2, paired = TRUE)
+
+# The means of the populations are not equal for the 95% confidence level.
+
+```
+
+ANOVA
+
+Comparing groups
+
+In this exercise, you will compare distributions of data across groups.
+
+You will work with the PlantGrowth dataset from the datasets package. This dataset contains results from an experiment on yields. Plants have been treated with two different methods. The group variable indicates if the given result is from the control group or one of the two treatment groups. Yields are measured by the dried weight of plants.
+
+Your task is to calculate means and visualize five common statistics (minimum, first quartile, median, third quartile, and maximum) of the yields' weight. The graphical depiction will help you to compare the differences in the response variable across groups.
+
+
+```{r}
+# Null is true - type 1 error
+# Null is false - type 2 error
+
+# Calculate the mean weight for the control and the two treatment groups.
+tapply(PlantGrowth$weight, PlantGrowth$group, FUN = mean)
+
+# Visualize five common statistics (minimum, first quartile, median, third quartile, and maximum) of weight across groups.
+boxplot(weight ~ group, data = PlantGrowth)
+
+# In this sample, yields under the second treatment were on average higher than yields of the control group.
+
+```
+
+ANOVA for plant growth
+
+In this exercise, you will perform a one-way ANOVA to compare means across groups.
+
+This task might pop up during the interviews for various sectors, including engineering, marketing, and medical services. ANOVA is useful whenever you want to measure if different approaches impact the result.
+
+Again you will work with the PlantGrowth dataset. Check if the assumptions of ANOVA are met and determine if the treatment impacts yields.
+
+To check the normality, use the test that has the best power for a given significance for each group. To check the homogeneity of variance, use the test that is sensitive to departures from normality. To perform ANOVA, use the function from the stats package that is flexible with the equal variances assumption.
+
+```{r}
+# Perform a normality test on the data for each group.
+tapply(PlantGrowth$weight, PlantGrowth$group, FUN = shapiro.test)
+
+# Test if the samples are from populations with equal variances.
+bartlett.test(weight ~ group, data = PlantGrowth)
+
+# Q Do the tests' results imply the violation of ANOVA assumptions?
+# A No, the results do not imply the violation of ANOVA assumptions.
+
+# Numerically assess if the means of weight across groups are equal using analysis of variance.
+# Perform one-way ANOVA 
+oneway.test(weight ~ group, data = PlantGrowth, var.equal = TRUE)
+
+# Q What is the result of the test?
+# A There is a difference in average yields across groups because the p-value amounts to 0.01591.
+#   Yes! The p-value is lower than 5%, so we reject the null hypothesis that the means across groups are equal. The treatment affects the yields! 
+
+```
+
+Covariance by hand
+
+In R, you can quickly compute various statistical measures using functions. The interviewer might be interested if you can replicate the calculations of these functions to ensure your understanding of what the functions do.
+
+In this exercise, you will compute covariance by hand. The covariance measures the variability of two random variables.
+
+Recall that the formula for the covariance of a sample is:
+
+∑ni=1(xi−x¯¯¯)(yi−y¯¯¯)n−1
+
+The df data frame is available in your environment with variables x and y.
+
+```{r}
+# Assign the number of observations in df to n.
+n <- nrow(df)
+
+# Compute the covariance between x and y by hand.
+sum((df$x-mean(df$x))*(df$y-mean(df$y)))/(n-1)
+
+# Compute the covariance between x and y using a function from the stats package.
+cov(df$x, df$y)
+
+```
+
+Linear relationship
+
+You can spot a correlation in the business landscape around you. If the demand rises, the price increases. On a macro scale, if the consumers spend more, the GDP increases.
+
+The correlation coefficient measures the strength of the linear relationship between two variables.
+
+In this exercise, you will analyze the linear relationship on the women dataset from the datasets package. The dataset is available as women in the environment.
+
+The dataset includes the average heights and weights for American women aged 30-39.
+
+```{r}
+# Draw the scatter plot of height on the x-axis and weight on the y-axis from the women dataset.
+plot(women$height, women$weight)
+
+# Q What is the value of the correlation coefficient between height and weight?
+# A Close to 1
+
+# Calculate the covariance for the height and weight variables from the women dataset.
+cov(women$height, women$weight)
+
+# Calculate the correlation coefficient for the height and weight variables from the women dataset.
+cor(women$height, women$weight)
+
+```
+
+Nonlinear relationship
+
+Covariance and correlation measure the strength of a linear relationship.
+
+If these metrics are low, it doesn't mean that the variables are not related at all!
+
+In some cases, you can achieve linearity using a transformation of one or more of the variables. If your data is heavily skewed, a log-transformation usually helps.
+
+In your environment, you can find the houses data frame with two variables: area and price.
+
+```{r}
+# Draw a scatter plot of price explained by area from the houses data frame; are the variables related?
+plot(area ~ price, data = houses)
+
+# Compute the correlation coefficient between price and area; what does the result tell about the relationship between variables?
+cor(houses$area, houses$price)
+
+# Draw a histogram of price; is the distribution skewed?
+hist(houses$price)
+
+# Draw a scatter plot of logarithm of price explained by area; how did the relationship change?
+plot(log(price) ~ area, data = houses)
+
+# Compute the correlation coefficient between logarithm of price and area.
+cor(log(houses$price), houses$area)
+
+```
+
+Fitting linear models
+
+If your future role involves building predictive models, the interviewer might be interested in testing your knowledge of linear regression.
+
+Linear regression models are one of the basic forms of predicting values for linearly related data. Linear regression model requires normality and homoscedasticity of the errors. If you fit a linear regression model during the interview, ensure that these assumptions are met.
+
+You are already familiar with the cats dataset. The dataset is available in your environment. To add a regression line to the plot, you can use abline() applied on a linear model's object.
+
+```{r}
+# Draw the scatterplot of Bwt on the x-axis and Hwt on the y-axis.
+plot(Hwt ~ Bwt, data = cats)
+
+# Fit a linear regression model explaining heart weight by body weight.
+model <- lm(Hwt ~ Bwt, data = cats)
+
+# Add the regression line
+abline(model)
+
+#Draw the linear model's diagnostic plots.
+plot(model)
+
+# In the Q-Q plot, the residuals lie mostly on a dashed line, which indicates normality of distribution. In the Scale-Location plot, the smooth line is roughly horizontal, which implies homoscedasticity of residuals.
+
+```
+
+Predicting with linear models
+
+The skill of prediction is necessary if you apply for positions such as a magician, a clairvoyant, or a data scientist.
+
+Regression models can be used to predict an independent variable for new data points. You can easily predict with R functions, but it's worth knowing how the results are computed.
+
+The following variables are available in the environment:
+
+    cats - the dataset from the MASS package,
+    model - the linear regression model that you've fitted in the last exercise,
+    new_cat - the value of bodyweight for a new cat.
+    
+```{r}
+new_cat = data.frame(Bwt = 2.55)
+
+# Print the new cat's data
+print(new_cat)
+
+# Print the linear model
+print(model)
+
+# Compute by hand the prediction for the new_cat's body weight. Use four decimal places for the intercept and the slope parameter.
+prediction <- -0.3567 + 4.0341 * 2.55
+print(prediction)
+
+# Compute the prediction for the new_cat using a function.
+predict(model, newdata = new_cat)
+
+```
+
+Fitting logistic models
+
+Many business problems require the prediction of a binary response variable. Your future employer may need to detect spam e-mails, credit card frauds, or rare diseases.
+
+The logistic regression model is the go-to method for binary classification problems.
+
+In this exercise, you will use Parkinson's dataset from the UCI repository. This dataset is composed of a range of biomedical voice measurements from people with and without Parkinson's disease.
+
+You will use the following variables from the dataset:
+
+    status - 1 - if a person has Parkinson's disease, 0 - otherwise,
+    NHR - a measure of the ratio of noise to tonal components in the voice,
+    DFA - a signal fractal scaling exponent.
+
+The dataset is available as parkinsons.
+
+```{r}
+parkinsons <- read.csv("C:/Users/owner/Desktop/parkinsons.data")
+
+# Plot status vs NHR
+plot(status ~ NHR, data = parkinsons)
+
+# Plot status vs DFA
+plot(status ~ DFA, data = parkinsons)
+
+# Fit the logistic model
+model <- glm(status ~ NHR + DFA, data = parkinsons, family = binomial)
+
+
+# Print the model
+summary(model)
+
+```
+
+Predicting with logistic models
+
+The logistic regression model computes the probabilities that the given observation belongs to one of the classes.
+
+The logistic model with two explanatory variables has the following form:
+
+11+e−(β0+β1⋅x1+β2⋅x2)
+
+The R functions do the hard work for the users, but knowing the mechanics behind them will give you confidence in their correct application during the interview.
+
+In the previous exercise, you've used the parkinsons dataset and fitted the logistic regression model. These two objects and the new_person data frame are available in your environment.
+
+```{r}
+# Print the new person's data
+print(new_person)
+
+# Print the logistic model
+print(model)
+
+# Compute by hand the probability that the new_person has Parkinson's disease. Use three decimal places for the parameters.
+probability <- 1 / (1 + exp(-(-8.707 + 49.188 * 0.2 + 12.702 * 0.6)))
+print(probability)
+
+# Compute the probability that the new_person has Parkinson's disease using a function.
+predict(model, newdata = new_person, type = 'response')
+
+#Excellent! The probability that the new_person has Parkinson's disease is greater than 99%. We would predict that this person does have Parkinson's.
+
+```
+
+Validation set approach
+
+In the chapter on linear regression, you fit a linear regression model that explains cats' heart weights by their body weights. The job interviewer asks you to evaluate how good your model is.
+
+To answer this question, you need to derive predictions that can be compared against the actual values. In the validation set approach, you must divide your data into two parts. One of them is used for training the model and the second for testing it.
+
+The cats dataset is available in your environment. The seed has been set to ensure reproducibility.
+
+```{r}
+# Randomly choose 80% (rounded) of the row numbers of the cats dataset.
+train_rows <- sample(nrow(cats), round(0.8 * nrow(cats)))
+
+# Derive the training set
+train_set <- cats[train_rows, ]
+
+# Derive the testing set
+test_set <- cats[-train_rows, ]
+
+# Fit a linear regression model that explains Hwt by Bwt on the training set.
+model <- lm(Hwt ~ Bwt, data = train_set)
+
+```
+
+Regression evaluation
+
+The test_set and model objects that you have derived in the previous exercise are available in your environment.
+
+It's useful to present the accuracy of predictions with one number. You can then easily compare several models and show the progress to your employer or future employer.
+
+Root Mean Squared Error and Mean Absolute Error are widely used to evaluate the regression models. Recall that their formulas are:
+
+RMSE=1n∑ni=1(yi−y^i)2−−−−−−−−−−−−−−√
+
+MAE=1n∑ni=1|yi−y^i|
+
+```{r}
+# Assign Hwt from the test set to y
+y <- test_set$Hwt
+
+# Predict Hwt on the test set
+y_hat <- predict(model, newdata = test_set)
+
+# Derive the test set's size
+n <- nrow(test_set$Hwt)
+
+# Calculate RMSE
+sqrt(1/n*sum((y-y_hat)^2))
+
+# Calculate MAE
+1/n*sum(abs(y-y_hat))
+
+library(Metrics)
+rmse(test_set$Hwt, y_hat)
+mae(test_set$Hwt, y_hat)
+
+```
+
+Classification evaluation
+
+In the previous lesson, you have built a logistic model to predict Parkinson's disease. In this exercise, you will compare predictions against actual values.
+
+This skill is vital because companies focus on the results. Employers want to know how accurate the models that you develop are. Quantifying the predictive power of models helps to choose the best one.
+
+Once again, you will build a model to predict the status of Parkinson's disease. This time, you will build the model on part of the dataset and use the rest for testing.
+
+Around 80% of the rows of the parkinsons dataset have been assigned to train, and the rest have been assigned to test.
+
+```{r}
+library(caret)
+
+parkinsons <- read.csv("C:/Users/owner/Desktop/parkinsons.data")
+parkinsons$status <- as.factor(parkinsons$status)
+
+# Randomly choose 80% (rounded) of the row numbers of the cats dataset.
+train_rows <- sample(nrow(parkinsons), round(0.8 * nrow(parkinsons)))
+
+# Derive the training set
+train <- parkinsons[train_rows, ]
+
+# Derive the testing set
+test <- parkinsons[-train_rows, ]
+
+# Build a logistic model that explains status by NHR and DFA using the train data.
+model <- glm(status ~ NHR + DFA, data = train, family = 'binomial')
+
+# Compute the probabilities of having Parkinson's disease for the test data.
+probabilities <- predict(model, newdata = test, type = 'response')
+
+# Predict the status in the test data by assigning 1 to the predictions vector when the probability is greater than 0.5, and 0 otherwise.
+predictions <- (probabilities > 0.5) * 1
+
+# Build a contingency table of the actual health status from the test dataset and the predictions.
+cm <- table(test$status, predictions)
+
+# Compute the recall
+cm[2, 2]/(cm[2, 2] + cm[2, 1])
+
+recall(test$status, predictions)
+
+#library(caret)
+confusionMatrix(as.factor(predictions), test$status, positive="1")
+
+```
+
+
+
+
+
+
+
+
+
