@@ -1,0 +1,225 @@
+---
+title: "Association Rules"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+```{r}
+library(arules)
+library(arulesViz)
+```
+
+# Load the data
+
+```{r}
+data("Groceries")
+```
+
+# Explore and Visualize
+
+```{r}
+str(Groceries)
+dim(Groceries)
+summary(Groceries)
+```
+
+
+```{r}
+inspect(Groceries[1:20,])
+```
+
+```{r}
+# Which items contain the word fish?
+colnames(Groceries)[grep("fish", colnames(Groceries))]
+
+# Which items contain the word wine?
+colnames(Groceries)[grep("wine", colnames(Groceries))]
+```
+
+
+```{r}
+itemFrequencyPlot(Groceries,
+                  type="relative",
+                  topN=15, # can be changed to the number of interest
+                  horiz=FALSE,
+                  col='steelblue3',
+                  xlab='',
+                  main='Item frequency, relative')
+```
+
+
+
+
+# Simple contingency table
+
+Sometimes, just looking at a simple contingency table could shed some light.
+
+```{r}
+tbl <- crossTable(Groceries)
+tbl[1:13,1:13]
+```
+
+
+How many people buy canned bear and bottled beer at the same time? And other products.
+
+```{r}
+tbl['canned beer','bottled beer']
+tbl['beef', 'red/blush wine']
+
+# What do people buy most often with their wine?
+sort(tbl[,'red/blush wine'], decreasing = TRUE)
+```
+
+
+# Build the association rules
+
+```{r}
+rules <- apriori(Groceries, parameter = list(supp = 0.001, conf = 0.1, target = "rules"))
+summary(rules)
+```
+
+```{r}
+# List the top 40 rules, ordered by lift
+inspect(head(rules, n=40, by = "lift"))
+```
+
+
+```{r}
+# Calculate another interestingness measure: conviction
+quality(rules) <- cbind(quality(rules),
+                  conviction = interestMeasure(rules, measure="conviction", transactions = Groceries))
+```
+
+```{r}
+# List the top 40 rules, ordered by conviction
+inspect(head(rules, n=40, by = "conviction"))
+```
+
+```{r}
+
+# First, just plot them all:
+# Note that the windows() call makes a new window pop up, which is what we want for interactivity.
+windows(); plot(rules, interactive = T)
+
+subrules <- rules[quality(rules)$confidence > 0.3]
+plot(subrules, method="matrix", measure="lift")
+plot(subrules, method="matrix3D", measure="lift")
+plot(subrules, method="graph", measure="lift")
+```
+
+
+## Example
+
+```{r}
+inspect(sort(subset(rules, 
+                    subset=rhs %in% 'bottled beer' & confidence > .7),
+                    by = 'lift',
+                    decreasing = T))
+
+```
+
+
+## Example
+
+Both “whole milk” and “yogurt” must be present and rule’s confidence must be higher than .9
+
+```{r}
+inspect(subset(rules, subset=items %ain% c("whole milk","yogurt") & confidence >.90))
+```
+
+
+## Example
+“Bread” must be present in lhs: any type of “bread” – “white bread”, “brown bread” – both qualify. “Whole milk” must be present in rhs “as is”. confidence of the rule must be higher than .9
+
+
+```{r}
+inspect(subset(rules, subset= lhs %pin% "bread" & rhs %in% "whole milk" & confidence > .9))
+```
+
+# Making up some transaction data
+
+For use in class, I wanted to make up some data to describe different situations.
+
+
+Looking for a rule with high support, high conf, and high lift. E.g.:
+- Support of {A} is 70%
+- Support of {B} is 50%
+- Support of {A,B} is 50%
+- Confidence of {A}->{B} is 100% 
+- Lift is therefore 2.0
+
+Looking for a rule with high support, high conf, and low lift. I.e.:
+- Support of {A} is 100%
+- Support of {B} is 50%
+- Support of {A,B} is 50%
+- Confidence of {A}->{B} is 50% 
+- Lift is therefore 1.0
+
+```{r}
+a_list <- list(
+c("milk","bread","carrot"),
+c("milk","bread"),
+c("milk","bread","meat"),
+c("milk","diamonds"),
+c("milk","bread","meat","diamonds"),
+c("milk", "meat"),
+c("milk"),
+c("bread"),
+c("bread", "meat"),
+c("milk","bread", "diamonds"),
+c("milk","bread", "carrot"),
+c("milk","bread"),
+c("diamonds", "meat"),
+c("diamonds", "meat"),
+c("diamonds", "meat"),
+c("diamonds", "meat"),
+c("diamonds", "meat"),
+c("diamonds", "meat"),
+c("diamonds", "meat"),
+c("diamonds", "meat")
+)
+## set transaction names
+names(a_list) <- paste("Tr",c(1:5), sep = "")
+## coerce into transactions
+trans1 <- as(a_list, "transactions")
+## analyze transactions
+summary(trans1)
+#image(trans1)
+rules <- apriori(trans1, parameter = list(supp = 0.001, conf = 0.001, target = "rules"))
+```
+
+
+```{r}
+inspect(sort(subset(rules,  
+                    subset=lhs %in% 'bread' ),
+                    by = 'lift',
+                    decreasing = T))
+```
+
+Let's look at milk-> bread. Expect high, high, high
+```{r}
+inspect(sort(subset(rules, 
+                    subset=lhs %in% 'milk' & rhs %in% 'bread'),
+                    by = 'lift',
+                    decreasing = T))
+```
+
+```{r}
+inspect(sort(subset(rules, 
+                    subset=lhs %in% 'diamonds' & confidence > .0),
+                    by = 'lift',
+                    decreasing = T))
+```
+
+```{r}
+inspect(head(rules, n=42, by = "support"))
+```
+
+```{r}
+inspect(head(rules, n=42, by = "confidence"))
+```
+
+```{r}
+inspect(head(rules, n=42, by = "lift"))
+```
