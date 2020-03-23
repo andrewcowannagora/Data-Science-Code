@@ -1,0 +1,1 @@
+EXECUTE sp_execute_external_script@language = N'Python',@script = N'A = "Apple"B = "Banana"C = "Cherry"#OutputDataSet = pandas.DataFrame(pandas.Series([A, B, C]))l = [A, B, C]s = pandas.Series(l)df = pandas.DataFrame(s)OutputDataSet = df'WITH RESULT SETS (([Fruit] nvarchar(20)));

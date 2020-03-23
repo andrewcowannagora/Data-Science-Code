@@ -1,0 +1,1 @@
+EXEC sp_execute_external_script@language = N'Python',@script = N'OutputDataSet = InputDataSet.sample(10)',@input_data_1 = N'SELECT CityID, CityName FROM Application.Cities'WITH RESULT SETS (([CityID] int, [CityName] nvarchar(50)));
